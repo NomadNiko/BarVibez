@@ -21,6 +21,7 @@ export interface Cocktail {
   image: string | null;
   video: string | null;
   tags: string[];
+  tier?: number;
   iba: string | null;
   imageSource: string | null;
   imageAttribution: string | null;
@@ -44,4 +45,6 @@ export interface SearchFilters {
   category?: string;
   glass?: string;
   ingredients?: string[];
+  tier?: number;
+  tags?: string[];
 }

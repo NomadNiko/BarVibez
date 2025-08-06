@@ -1,21 +1,31 @@
 import { Link, Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Platform, View } from 'react-native';
 import { HeaderButton } from '../../components/HeaderButton';
 import { TabBarIcon } from '../../components/TabBarIcon';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  // Force dark mode for bartending app
+  const colorScheme = 'dark';
 
   return (
+    <>
     <Tabs
       initialRouteName="popular"
       screenOptions={{
-        tabBarActiveTintColor: colorScheme === 'dark' ? 'white' : 'black',
-        tabBarInactiveTintColor: colorScheme === 'dark' ? '#8E8E93' : '#8E8E93',
+        tabBarActiveTintColor: 'white',
+        tabBarInactiveTintColor: '#8E8E93',
         tabBarShowLabel: false,
         tabBarStyle: {
           paddingTop: 10,
-          paddingBottom: 10,
+          paddingBottom: Platform.OS === 'android' ? 5 : 10,
+          backgroundColor: '#000000',
+          borderTopWidth: 0,
+          elevation: 0,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: Platform.OS === 'android' ? 56 : 60,
         },
         tabBarIconStyle: {
           marginTop: 0,
@@ -47,6 +57,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="user"
+        options={{
+          title: 'User',
+          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
           href: null,
@@ -59,5 +77,17 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    {Platform.OS === 'android' && (
+      <View style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 100,
+        backgroundColor: '#000000',
+        zIndex: -1,
+      }} />
+    )}
+    </>
   );
 }

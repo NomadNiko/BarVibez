@@ -1,64 +1,88 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable, Dimensions } from 'react-native';
+import { View, ScrollView, Pressable, Dimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Cocktail } from '~/lib/types/cocktail';
+import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
+import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 
 const { width, height } = Dimensions.get('window');
 
-// Glass image mapping function
-const getGlassImage = (glassType: string) => {
-  const glassName = glassType.toLowerCase().replace(/\s+/g, '').replace(/-/g, '');
-  
-  const glassMap: Record<string, any> = {
-    'cocktailglass': require('../../assets/glass/cocktailGlass.jpg'),
-    'martiniglass': require('../../assets/glass/martiniGlass.jpg'),
-    'oldfashionedglass': require('../../assets/glass/oldFashionedGlass.jpg'),
-    'highballglass': require('../../assets/glass/highballGlass.jpg'),
-    'collinsglass': require('../../assets/glass/collinsGlass.jpg'),
-    'margaritacoupe': require('../../assets/glass/MargaritaCoupetteGlass.jpg'),
-    'margaritacoupetteglass': require('../../assets/glass/MargaritaCoupetteGlass.jpg'),
-    'margaritacoupette': require('../../assets/glass/MargaritaCoupetteGlass.jpg'),
-    'margaritalgass': require('../../assets/glass/margaritaGlass.jpg'),
-    'champagneflute': require('../../assets/glass/champagneFlute.jpg'),
-    'wineglass': require('../../assets/glass/wineGlass.jpg'),
-    'whitwineglass': require('../../assets/glass/whiteWineGlass.jpg'),
-    'brandysnifter': require('../../assets/glass/brandySnifter.jpg'),
-    'shotglass': require('../../assets/glass/shotGlass.jpg'),
-    'beerglass': require('../../assets/glass/beerGlass.jpg'),
-    'beermug': require('../../assets/glass/beerMug.jpg'),
-    'pilsner': require('../../assets/glass/beerPilsner.jpg'),
-    'hurricaneglass': require('../../assets/glass/hurricanGlass.jpg'),
-    'coupglass': require('../../assets/glass/coupGlass.jpg'),
-    'nickandnoraglass': require('../../assets/glass/nickAndNoraGlass.jpg'),
-    'cordial': require('../../assets/glass/cordialGlass.jpg'),
-    'cordialglass': require('../../assets/glass/cordialGlass.jpg'),
-    'irishcoffeecup': require('../../assets/glass/irishCoffeeCup.jpg'),
-    'coffeemug': require('../../assets/glass/coffeeMug.jpg'),
-    'coppermug': require('../../assets/glass/copperMug.jpg'),
-    'jar': require('../../assets/glass/jar.jpg'),
-    'masonjar': require('../../assets/glass/masonJar.jpg'),
-    'parfaitglass': require('../../assets/glass/parfaitGlass.jpg'),
-    'pintglass': require('../../assets/glass/pintGlass.jpg'),
-    'pitcher': require('../../assets/glass/pitcher.jpg'),
-    'poussecafeglass': require('../../assets/glass/pousseCafeGlass.jpg'),
-    'punchbowl': require('../../assets/glass/punchBowl.jpg'),
-    'whiskyglass': require('../../assets/glass/whiskeyGlass.jpg'),
-    'whiskeyglass': require('../../assets/glass/whiskeyGlass.jpg'),
-    'whiskeysour': require('../../assets/glass/whiskeySourGlass.jpg'),
-    'whiskysourglass': require('../../assets/glass/whiskeySourGlass.jpg'),
-    'balloonglass': require('../../assets/glass/balloonGlass.jpg'),
+// Helper function to parse and sort ingredients by measurement
+const sortIngredients = (ingredients: any[]) => {
+  const parseMeasurement = (measure: string | undefined) => {
+    if (!measure) return { value: 0, unit: 'other', original: measure };
+    
+    const lowerMeasure = measure.toLowerCase().trim();
+    
+    // Check for oz measurements (including fractions like 1/2 oz)
+    const ozMatch = lowerMeasure.match(/(\d+\.?\d*|\d+\/\d+)\s*oz/);
+    if (ozMatch) {
+      let value = ozMatch[1];
+      // Handle fractions
+      if (value.includes('/')) {
+        const [num, den] = value.split('/').map(Number);
+        value = (num / den).toString();
+      }
+      return { value: parseFloat(value), unit: 'oz', original: measure };
+    }
+    
+    // Check for tablespoon measurements
+    if (lowerMeasure.includes('tblsp') || lowerMeasure.includes('tablespoon') || lowerMeasure.includes('tbsp')) {
+      const numMatch = lowerMeasure.match(/(\d+\.?\d*|\d+\/\d+)/);
+      let value = 1;
+      if (numMatch) {
+        if (numMatch[1].includes('/')) {
+          const [num, den] = numMatch[1].split('/').map(Number);
+          value = num / den;
+        } else {
+          value = parseFloat(numMatch[1]);
+        }
+      }
+      return { value, unit: 'tablespoon', original: measure };
+    }
+    
+    // Check for dash measurements
+    if (lowerMeasure.includes('dash')) {
+      const numMatch = lowerMeasure.match(/(\d+\.?\d*)/);
+      return { value: numMatch ? parseFloat(numMatch[1]) : 1, unit: 'dash', original: measure };
+    }
+    
+    // Everything else (garnishes, etc)
+    return { value: 0, unit: 'other', original: measure };
   };
   
-  return glassMap[glassName] || require('../../assets/glass/cocktailGlass.jpg');
+  return ingredients.sort((a, b) => {
+    const aParsed = parseMeasurement(a.measure);
+    const bParsed = parseMeasurement(b.measure);
+    
+    // Sort order: oz > tablespoon > dash > other
+    const unitOrder = { 'oz': 1, 'tablespoon': 2, 'dash': 3, 'other': 4 };
+    
+    // First sort by unit type
+    if (unitOrder[aParsed.unit] !== unitOrder[bParsed.unit]) {
+      return unitOrder[aParsed.unit] - unitOrder[bParsed.unit];
+    }
+    
+    // Within same unit type, sort by value descending
+    if (aParsed.unit === bParsed.unit && aParsed.unit !== 'other') {
+      return bParsed.value - aParsed.value;
+    }
+    
+    // Keep original order for 'other' items
+    return 0;
+  });
 };
 
 export default function RandomCocktailScreen() {
   const { cocktails, isLoading, error } = useCocktails();
   const [randomCocktail, setRandomCocktail] = useState<Cocktail | null>(null);
+  const { addFavorite, removeFavorite, isFavorite } = useFavorites();
+  const { settings } = useUserSettings();
 
   // Get a random cocktail
   const getRandomCocktail = () => {
@@ -75,6 +99,21 @@ export default function RandomCocktailScreen() {
       getRandomCocktail();
     }
   }, [cocktails, randomCocktail]);
+
+  const handleFavoriteToggle = async () => {
+    if (!randomCocktail?.id) return;
+    
+    try {
+      if (isFavorite(randomCocktail.id)) {
+        await removeFavorite(randomCocktail.id);
+      } else {
+        await addFavorite(randomCocktail.id);
+      }
+    } catch (error) {
+      console.error('Random page - favorite toggle error:', error);
+      Alert.alert('Error', 'Failed to update favorites');
+    }
+  };
 
   if (error) {
     return (
@@ -107,7 +146,31 @@ export default function RandomCocktailScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }} edges={['top', 'left', 'right']}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
-        {/* Shuffle button - top right corner */}
+        {/* Action buttons - top corners */}
+        <View style={{ 
+          position: 'absolute',
+          top: 10,
+          left: 20,
+          zIndex: 1
+        }}>
+          <Pressable
+            onPress={handleFavoriteToggle}
+            style={{
+              backgroundColor: '#333333',
+              borderRadius: 20,
+              width: 40,
+              height: 40,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+            <FontAwesome 
+              name={isFavorite(randomCocktail.id) ? 'heart' : 'heart-o'} 
+              size={16} 
+              color={isFavorite(randomCocktail.id) ? '#FF6B6B' : '#ffffff'} 
+            />
+          </Pressable>
+        </View>
+
         <View style={{ 
           position: 'absolute',
           top: 10,
@@ -134,9 +197,9 @@ export default function RandomCocktailScreen() {
         </Text>
 
         {/* Glassware Image */}
-<View style={{ alignItems: 'center', marginBottom: 40, marginTop: 20 }}>
+        <View style={{ alignItems: 'center', marginBottom: 20, marginTop: 20 }}>
           <Image
-            source={getGlassImage(randomCocktail.glass)}
+            source={getGlassImageNormalized(randomCocktail.glass)}
             style={{ width: 200, height: 200 }}
             contentFit="contain"
             cachePolicy="memory-disk"
@@ -145,7 +208,7 @@ export default function RandomCocktailScreen() {
 
         {/* Ingredients */}
         <View style={{ paddingHorizontal: 20, marginBottom: 40 }}>
-          {randomCocktail.ingredients.map((ingredient, index) => (
+          {sortIngredients(randomCocktail.ingredients).map((ingredient, index) => (
             <View 
               key={index} 
               style={{ 
@@ -172,7 +235,10 @@ export default function RandomCocktailScreen() {
                   marginRight: 30,
                   fontWeight: '300'
                 }}>
-                  {ingredient.measure}
+                  {MeasurementConverter.convertIngredientMeasure(
+                    ingredient.measure, 
+                    settings?.measurements || 'oz'
+                  )}
                 </Text>
               )}
             </View>
@@ -183,8 +249,8 @@ export default function RandomCocktailScreen() {
         <View style={{ paddingHorizontal: 20, paddingBottom: 40 }}>
           <Text style={{ 
             color: '#ffffff', 
-            fontSize: 20, 
-            lineHeight: 28,
+            fontSize: 18, 
+            lineHeight: 26,
             textAlign: 'center',
             fontWeight: '400'
           }}>

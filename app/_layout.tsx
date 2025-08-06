@@ -11,12 +11,12 @@ import { StatusBar } from 'expo-status-bar';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { ThemeToggle } from '~/components/ThemeToggle';
 import { useColorScheme, useInitialAndroidBarSync } from '~/lib/useColorScheme';
 import { NAV_THEME } from '~/theme';
 import { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
 import { cocktailDB } from '~/lib/database/cocktailDB';
+import { UserProvider } from '~/lib/contexts/UserContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -73,7 +73,9 @@ const getGlassImage = (glassType: string) => {
 
 export default function RootLayout() {
   useInitialAndroidBarSync();
-  const { colorScheme, isDarkColorScheme } = useColorScheme();
+  // Force dark mode for bartending app
+  const colorScheme = 'dark';
+  const isDarkColorScheme = true;
   const [isDbInitialized, setIsDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -131,33 +133,39 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar
-        key={`root-status-bar-${isDarkColorScheme ? 'light' : 'dark'}`}
-        style={isDarkColorScheme ? 'light' : 'dark'}
+        key="root-status-bar-light"
+        style="light"
       />
       {/* WRAP YOUR APP WITH ANY ADDITIONAL PROVIDERS HERE */}
-      {/* <ExampleProvider> */}
-
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <BottomSheetModalProvider>
-          <ActionSheetProvider>
-            <NavThemeProvider value={NAV_THEME[colorScheme]}>
-              <Stack screenOptions={SCREEN_OPTIONS}>
-                <Stack.Screen name="(tabs)" options={TABS_OPTIONS} />
-                <Stack.Screen name="modal" options={MODAL_OPTIONS} />
-                <Stack.Screen
-                  name="cocktail/[id]"
-                  options={{
-                    headerShown: false,
-                    presentation: 'card',
-                  }}
-                />
-              </Stack>
-            </NavThemeProvider>
-          </ActionSheetProvider>
-        </BottomSheetModalProvider>
-      </GestureHandlerRootView>
-
-      {/* </ExampleProvider> */}
+      <UserProvider>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000000' }}>
+          <BottomSheetModalProvider>
+            <ActionSheetProvider>
+              <NavThemeProvider value={NAV_THEME[colorScheme]}>
+                <Stack screenOptions={SCREEN_OPTIONS}>
+                  <Stack.Screen name="(tabs)" options={TABS_OPTIONS} />
+                  <Stack.Screen name="modal" options={MODAL_OPTIONS} />
+                  <Stack.Screen
+                    name="disclaimer"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                      gestureEnabled: false, // Prevent swipe back
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cocktail/[id]"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                    }}
+                  />
+                </Stack>
+              </NavThemeProvider>
+            </ActionSheetProvider>
+          </BottomSheetModalProvider>
+        </GestureHandlerRootView>
+      </UserProvider>
     </>
   );
 }
@@ -174,5 +182,5 @@ const MODAL_OPTIONS = {
   presentation: 'modal',
   animation: 'fade_from_bottom', // for android
   title: 'Settings',
-  headerRight: () => <ThemeToggle />,
+  headerShown: false,
 } as const;

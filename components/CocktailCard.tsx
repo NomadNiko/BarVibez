@@ -1,53 +1,15 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { cn } from '~/lib/cn';
 import { Cocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
+import { getGlassImage, getAllGlassImages } from '~/lib/utils/glassImageMap';
+import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 import { useEffect } from 'react';
-
-// Static glass image imports using require() with JPG files
-const glassImages = {
-  'Balloon Glass': require('../assets/glass/balloonGlass.jpg'),
-  'Beer Glass': require('../assets/glass/beerGlass.jpg'),
-  'Beer Mug': require('../assets/glass/beerMug.jpg'),
-  'Beer Pilsner': require('../assets/glass/beerPilsner.jpg'),
-  'Brandy Snifter': require('../assets/glass/brandySnifter.jpg'),
-  'Champagne Flute': require('../assets/glass/champagneFlute.jpg'),
-  'Cocktail Glass': require('../assets/glass/cocktailGlass.jpg'),
-  'Coffee Mug': require('../assets/glass/coffeeMug.jpg'),
-  'Collins Glass': require('../assets/glass/collinsGlass.jpg'),
-  'Copper Mug': require('../assets/glass/copperMug.jpg'),
-  'Cordial Glass': require('../assets/glass/cordialGlass.jpg'),
-  'Coupe Glass': require('../assets/glass/coupGlass.jpg'),
-  'Highball Glass': require('../assets/glass/highballGlass.jpg'),
-  'Hurricane Glass': require('../assets/glass/hurricanGlass.jpg'),
-  'Irish Coffee Cup': require('../assets/glass/irishCoffeeCup.jpg'),
-  Jar: require('../assets/glass/jar.jpg'),
-  'Margarita Glass': require('../assets/glass/margaritaGlass.jpg'),
-  'Margarita/Coupette Glass': require('../assets/glass/MargaritaCoupetteGlass.jpg'),
-  'Martini Glass': require('../assets/glass/martiniGlass.jpg'),
-  'Mason Jar': require('../assets/glass/masonJar.jpg'),
-  'Nick And Nora Glass': require('../assets/glass/nickAndNoraGlass.jpg'),
-  'Old-Fashioned Glass': require('../assets/glass/oldFashionedGlass.jpg'),
-  'Parfait Glass': require('../assets/glass/parfaitGlass.jpg'),
-  'Pint Glass': require('../assets/glass/pintGlass.jpg'),
-  Pitcher: require('../assets/glass/pitcher.jpg'),
-  'Pousse Cafe Glass': require('../assets/glass/pousseCafeGlass.jpg'),
-  'Punch Bowl': require('../assets/glass/punchBowl.jpg'),
-  'Shot Glass': require('../assets/glass/shotGlass.jpg'),
-  'Whiskey Glass': require('../assets/glass/whiskeyGlass.jpg'),
-  'Whiskey Sour Glass': require('../assets/glass/whiskeySourGlass.jpg'),
-  'White Wine Glass': require('../assets/glass/whiteWineGlass.jpg'),
-  'Wine Glass': require('../assets/glass/wineGlass.jpg'),
-} as const;
-
-const defaultGlassImage = require('../assets/glass/cocktailGlass.jpg');
-
-function getGlassImage(glassType: string) {
-  return glassImages[glassType as keyof typeof glassImages] || defaultGlassImage;
-}
 
 interface CocktailCardProps {
   cocktail: Cocktail;
@@ -55,14 +17,31 @@ interface CocktailCardProps {
 }
 
 export function CocktailCard({ cocktail, className }: CocktailCardProps) {
+  const { addFavorite, removeFavorite, isFavorite } = useFavorites();
+  const { settings } = useUserSettings();
+
   const handlePress = () => {
     router.push(`/cocktail/${cocktail.id}`);
+  };
+
+  const handleFavoriteToggle = async (event: any) => {
+    event.stopPropagation(); // Prevent navigation when tapping favorite button
+    
+    try {
+      if (isFavorite(cocktail.id)) {
+        await removeFavorite(cocktail.id);
+      } else {
+        await addFavorite(cocktail.id);
+      }
+    } catch (error) {
+      console.error('Failed to update favorites:', error);
+    }
   };
 
   // Preload glass images for faster loading
   useEffect(() => {
     const preloadImages = async () => {
-      const allGlassImages = Object.values(glassImages);
+      const allGlassImages = getAllGlassImages();
       allGlassImages.forEach((imageSource) => {
         Image.prefetch(imageSource);
       });
@@ -77,7 +56,30 @@ export function CocktailCard({ cocktail, className }: CocktailCardProps) {
       className={cn(
         'ios:active:opacity-80 mb-3 rounded-lg border border-border bg-card p-3',
         className
-      )}>
+      )}
+      style={{ position: 'relative' }}>
+      {/* Favorite Button */}
+      <Pressable
+        onPress={handleFavoriteToggle}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 10,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          borderRadius: 20,
+          width: 32,
+          height: 32,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+        <FontAwesome 
+          name={isFavorite(cocktail.id) ? 'heart' : 'heart-o'} 
+          size={14} 
+          color={isFavorite(cocktail.id) ? '#FF6B6B' : '#ffffff'} 
+        />
+      </Pressable>
+
       <View className="flex-row">
         <View className="flex-1 pr-3">
           <Text className="mb-1 text-base font-semibold text-foreground" numberOfLines={1}>

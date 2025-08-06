@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, Dimensions } from 'react-native';
+import { View, ScrollView, Dimensions, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -11,48 +11,9 @@ import { BackButton } from '~/components/BackButton';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Cocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
-
-// Static glass image imports using require() with JPG files
-const glassImages = {
-  'Balloon Glass': require('~/assets/glass/balloonGlass.jpg'),
-  'Beer Glass': require('~/assets/glass/beerGlass.jpg'),
-  'Beer Mug': require('~/assets/glass/beerMug.jpg'),
-  'Beer Pilsner': require('~/assets/glass/beerPilsner.jpg'),
-  'Brandy Snifter': require('~/assets/glass/brandySnifter.jpg'),
-  'Champagne Flute': require('~/assets/glass/champagneFlute.jpg'),
-  'Cocktail Glass': require('~/assets/glass/cocktailGlass.jpg'),
-  'Coffee Mug': require('~/assets/glass/coffeeMug.jpg'),
-  'Collins Glass': require('~/assets/glass/collinsGlass.jpg'),
-  'Copper Mug': require('~/assets/glass/copperMug.jpg'),
-  'Cordial Glass': require('~/assets/glass/cordialGlass.jpg'),
-  'Coupe Glass': require('~/assets/glass/coupGlass.jpg'),
-  'Highball Glass': require('~/assets/glass/highballGlass.jpg'),
-  'Hurricane Glass': require('~/assets/glass/hurricanGlass.jpg'),
-  'Irish Coffee Cup': require('~/assets/glass/irishCoffeeCup.jpg'),
-  Jar: require('~/assets/glass/jar.jpg'),
-  'Margarita Glass': require('~/assets/glass/margaritaGlass.jpg'),
-  'Margarita/Coupette Glass': require('~/assets/glass/MargaritaCoupetteGlass.jpg'),
-  'Martini Glass': require('~/assets/glass/martiniGlass.jpg'),
-  'Mason Jar': require('~/assets/glass/masonJar.jpg'),
-  'Nick And Nora Glass': require('~/assets/glass/nickAndNoraGlass.jpg'),
-  'Old-Fashioned Glass': require('~/assets/glass/oldFashionedGlass.jpg'),
-  'Parfait Glass': require('~/assets/glass/parfaitGlass.jpg'),
-  'Pint Glass': require('~/assets/glass/pintGlass.jpg'),
-  Pitcher: require('~/assets/glass/pitcher.jpg'),
-  'Pousse Cafe Glass': require('~/assets/glass/pousseCafeGlass.jpg'),
-  'Punch Bowl': require('~/assets/glass/punchBowl.jpg'),
-  'Shot Glass': require('~/assets/glass/shotGlass.jpg'),
-  'Whiskey Glass': require('~/assets/glass/whiskeyGlass.jpg'),
-  'Whiskey Sour Glass': require('~/assets/glass/whiskeySourGlass.jpg'),
-  'White Wine Glass': require('~/assets/glass/whiteWineGlass.jpg'),
-  'Wine Glass': require('~/assets/glass/wineGlass.jpg'),
-} as const;
-
-const defaultGlassImage = require('~/assets/glass/cocktailGlass.jpg');
-
-function getGlassImage(glassType: string) {
-  return glassImages[glassType as keyof typeof glassImages] || defaultGlassImage;
-}
+import { getGlassImage } from '~/lib/utils/glassImageMap';
+import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 
 const { width } = Dimensions.get('window');
 
@@ -60,6 +21,8 @@ export default function CocktailDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getCocktailById } = useCocktails();
   const [cocktail, setCocktail] = useState<Cocktail | null>(null);
+  const { addFavorite, removeFavorite, isFavorite } = useFavorites();
+  const { settings } = useUserSettings();
 
   useEffect(() => {
     if (id) {
@@ -67,6 +30,20 @@ export default function CocktailDetailScreen() {
       setCocktail(found);
     }
   }, [id, getCocktailById]);
+
+  const handleFavoriteToggle = async () => {
+    if (!cocktail?.id) return;
+    
+    try {
+      if (isFavorite(cocktail.id)) {
+        await removeFavorite(cocktail.id);
+      } else {
+        await addFavorite(cocktail.id);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update favorites');
+    }
+  };
 
   if (!cocktail) {
     return (
@@ -105,8 +82,24 @@ export default function CocktailDetailScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="px-4 pb-2 pt-4">
-            <View className="mb-4 flex-row items-center">
+            <View className="mb-4 flex-row items-center justify-between">
               <BackButton />
+              <Pressable
+                onPress={handleFavoriteToggle}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 20,
+                  width: 40,
+                  height: 40,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}>
+                <FontAwesome 
+                  name={isFavorite(cocktail.id) ? 'heart' : 'heart-o'} 
+                  size={20} 
+                  color={isFavorite(cocktail.id) ? '#FF6B6B' : '#9CA3AF'} 
+                />
+              </Pressable>
             </View>
           </View>
 
@@ -168,7 +161,12 @@ export default function CocktailDetailScreen() {
                   className="flex-row items-center justify-between border-b border-border py-2 last:border-b-0">
                   <Text className="flex-1 font-medium text-foreground">{ingredient.name}</Text>
                   {ingredient.measure && (
-                    <Text className="text-sm text-muted-foreground">{ingredient.measure}</Text>
+                    <Text className="text-sm text-muted-foreground">
+                      {MeasurementConverter.convertIngredientMeasure(
+                        ingredient.measure, 
+                        settings?.measurements || 'oz'
+                      )}
+                    </Text>
                   )}
                 </View>
               ))}
