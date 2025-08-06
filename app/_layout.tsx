@@ -160,6 +160,21 @@ export default function RootLayout() {
                       presentation: 'card',
                     }}
                   />
+                  <Stack.Screen
+                    name="venue/[id]"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="paywall"
+                    options={{
+                      headerShown: false,
+                      presentation: 'fullScreenModal',
+                      animation: 'fade',
+                    }}
+                  />
                 </Stack>
               </NavThemeProvider>
             </ActionSheetProvider>

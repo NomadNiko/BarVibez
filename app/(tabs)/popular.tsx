@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { View, ScrollView, Pressable, FlatList, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { View, ScrollView, Pressable, FlatList, Dimensions, TouchableWithoutFeedback, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -434,10 +434,10 @@ export default function PopularScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
-      <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
-        <Container>
+      <View style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? 70 : 80, position: 'relative' }}>
         {/* Category Carousel */}
-        <View className="mb-4 pt-4" style={{ position: 'relative' }}>
+        <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
+          <View className="mb-4 pt-4">
           <View className="flex-row items-center justify-between">
             <Pressable
               onPress={goToPreviousCategory}
@@ -462,27 +462,29 @@ export default function PopularScreen() {
               <FontAwesome name="chevron-right" size={24} color="#9CA3AF" />
             </Pressable>
           </View>
+          </View>
+        </TouchableWithoutFeedback>
 
-          {/* Dropdown Menu */}
-          {showDropdown && (
-            <View 
-              style={{
-                position: 'absolute',
-                top: 60,
-                left: 20,
-                right: 20,
-                backgroundColor: '#1a1a1a',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: '#333333',
-                zIndex: 1000,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              }}>
-              {CATEGORIES.map((category, index) => (
+        {/* Dropdown Menu - Moved outside and positioned absolutely */}
+        {showDropdown && (
+          <View 
+            style={{
+              position: 'absolute',
+              top: 56,
+              left: 20,
+              right: 20,
+              backgroundColor: '#1a1a1a',
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: '#333333',
+              zIndex: 9999,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 20,
+            }}>
+            {CATEGORIES.map((category, index) => (
                 <Pressable
                   key={category.id}
                   onPress={() => handleCategorySelect(index)}
@@ -491,6 +493,10 @@ export default function PopularScreen() {
                     borderBottomWidth: index < CATEGORIES.length - 1 ? 1 : 0,
                     borderBottomColor: '#333333',
                     backgroundColor: index === selectedCategoryIndex ? '#333333' : 'transparent',
+                    borderTopLeftRadius: index === 0 ? 12 : 0,
+                    borderTopRightRadius: index === 0 ? 12 : 0,
+                    borderBottomLeftRadius: index === CATEGORIES.length - 1 ? 12 : 0,
+                    borderBottomRightRadius: index === CATEGORIES.length - 1 ? 12 : 0,
                   }}>
                   <Text 
                     style={{ 
@@ -503,9 +509,8 @@ export default function PopularScreen() {
                   </Text>
                 </Pressable>
               ))}
-            </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* Cocktails Content */}
         <View className="flex-1">
@@ -521,7 +526,7 @@ export default function PopularScreen() {
                 decelerationRate="fast"
                 contentContainerStyle={{
                   paddingHorizontal: (screenWidth - (screenWidth * 0.8)) / 2,
-                  paddingBottom: 16,
+                  paddingBottom: 0,
                   flexGrow: 1,
                 }}
                 style={{ flex: 1 }}
@@ -545,9 +550,8 @@ export default function PopularScreen() {
                 </Text>
               </View>
             )}
-          </View>
-        </Container>
-      </TouchableWithoutFeedback>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }

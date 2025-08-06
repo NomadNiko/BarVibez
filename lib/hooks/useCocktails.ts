@@ -1,24 +1,36 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { cocktailDB } from '../database/cocktailDB';
 import { Cocktail, SearchFilters } from '../types/cocktail';
+import { useUserSettings } from '../contexts/UserContext';
 
 export function useCocktails() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cocktails, setCocktails] = useState<Cocktail[]>([]);
+  const [allCocktails, setAllCocktails] = useState<Cocktail[]>([]);
+  const { settings } = useUserSettings();
+
+  // Filter cocktails based on subscription status
+  const cocktails = useMemo(() => {
+    if (!settings?.subscriptionStatus || settings.subscriptionStatus === 'premium') {
+      // Premium users or unset status get all cocktails
+      return allCocktails;
+    }
+    // Free users only get Tier 1 cocktails
+    return allCocktails.filter(cocktail => cocktail.tier === 1);
+  }, [allCocktails, settings?.subscriptionStatus]);
 
   const initialize = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       await cocktailDB.initialize();
-      const allCocktails = cocktailDB.getAllCocktails();
-      setCocktails(allCocktails);
+      const loadedCocktails = cocktailDB.getAllCocktails();
+      setAllCocktails(loadedCocktails);
 
       // If no cocktails loaded, force refresh from JSON
-      if (allCocktails.length === 0) {
+      if (loadedCocktails.length === 0) {
         await cocktailDB.forceRefreshFromJSON();
-        setCocktails(cocktailDB.getAllCocktails());
+        setAllCocktails(cocktailDB.getAllCocktails());
       }
     } catch (err) {
       console.error('Failed to initialize cocktails:', err);
@@ -33,8 +45,13 @@ export function useCocktails() {
   }, [initialize]);
 
   const searchCocktails = useCallback((query: string, filters?: SearchFilters) => {
-    return cocktailDB.searchCocktails(query, filters);
-  }, []);
+    const results = cocktailDB.searchCocktails(query, filters);
+    // Filter by subscription status
+    if (settings?.subscriptionStatus === 'free') {
+      return results.filter(cocktail => cocktail.tier === 1);
+    }
+    return results;
+  }, [settings?.subscriptionStatus]);
 
   const getCocktailById = useCallback((id: string) => {
     return cocktailDB.getCocktailById(id);
@@ -42,14 +59,14 @@ export function useCocktails() {
 
   const addCocktail = useCallback((cocktail: Omit<Cocktail, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newCocktail = cocktailDB.addCocktail(cocktail);
-    setCocktails(cocktailDB.getAllCocktails());
+    setAllCocktails(cocktailDB.getAllCocktails());
     return newCocktail;
   }, []);
 
   const updateCocktail = useCallback((id: string, updates: Partial<Cocktail>) => {
     const updated = cocktailDB.updateCocktail(id, updates);
     if (updated) {
-      setCocktails(cocktailDB.getAllCocktails());
+      setAllCocktails(cocktailDB.getAllCocktails());
     }
     return updated;
   }, []);
@@ -57,16 +74,20 @@ export function useCocktails() {
   const deleteCocktail = useCallback((id: string) => {
     const deleted = cocktailDB.deleteCocktail(id);
     if (deleted) {
-      setCocktails(cocktailDB.getAllCocktails());
+      setAllCocktails(cocktailDB.getAllCocktails());
     }
     return deleted;
   }, []);
 
   const getAllCocktails = useCallback(() => {
     const all = cocktailDB.getAllCocktails();
-    setCocktails(all);
+    setAllCocktails(all);
+    // Filter by subscription status
+    if (settings?.subscriptionStatus === 'free') {
+      return all.filter(cocktail => cocktail.tier === 1);
+    }
     return all;
-  }, []);
+  }, [settings?.subscriptionStatus]);
 
   const getCategories = useCallback(() => {
     return cocktailDB.getCategories();
@@ -89,7 +110,7 @@ export function useCocktails() {
       setIsLoading(true);
       setError(null);
       await cocktailDB.forceRefreshFromJSON();
-      setCocktails(cocktailDB.getAllCocktails());
+      setAllCocktails(cocktailDB.getAllCocktails());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh cocktails');
     } finally {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { UserData, UserContextType, UserSettings } from '../types/user';
+import { UserData, UserContextType, UserSettings, Venue } from '../types/user';
 import { UserDataManager } from '../services/userDataManager';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -17,6 +17,25 @@ export function UserProvider({ children }: UserProviderProps) {
     // Initialize user data manager
     try {
       const initialUserData = UserDataManager.initialize();
+      
+      // Force ensure default venue exists
+      if (initialUserData && (!initialUserData.venues || !initialUserData.venues.some(v => v.isDefault))) {
+        console.log('Creating default venue for existing user');
+        const defaultVenue = {
+          id: `venue_default_${initialUserData.userId}`,
+          name: 'My Speakeasy',
+          ingredients: [],
+          cocktailIds: [],
+          customCocktailIds: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isDefault: true,
+        };
+        
+        initialUserData.venues = [defaultVenue, ...(initialUserData.venues || [])];
+        UserDataManager.forceUpdateUserData(initialUserData);
+      }
+      
       setUserData(initialUserData);
       setError(null);
     } catch (err) {
@@ -106,6 +125,83 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
+  const createVenue = async (name: string): Promise<Venue> => {
+    try {
+      setError(null);
+      return UserDataManager.createVenue(name);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create venue';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const updateVenue = async (venueId: string, updates: Partial<Venue>): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.updateVenue(venueId, updates);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update venue';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const deleteVenue = async (venueId: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.deleteVenue(venueId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete venue';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const addIngredientToVenue = async (venueId: string, ingredient: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.addIngredientToVenue(venueId, ingredient);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add ingredient';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const removeIngredientFromVenue = async (venueId: string, ingredient: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.removeIngredientFromVenue(venueId, ingredient);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove ingredient';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const addCocktailToVenue = async (venueId: string, cocktailId: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.addCocktailToVenue(venueId, cocktailId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add cocktail';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const removeCocktailFromVenue = async (venueId: string, cocktailId: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.removeCocktailFromVenue(venueId, cocktailId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove cocktail';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const contextValue: UserContextType = {
     userData,
     isLoading,
@@ -114,6 +210,13 @@ export function UserProvider({ children }: UserProviderProps) {
     addFavorite,
     removeFavorite,
     isFavorite,
+    createVenue,
+    updateVenue,
+    deleteVenue,
+    addIngredientToVenue,
+    removeIngredientFromVenue,
+    addCocktailToVenue,
+    removeCocktailFromVenue,
     signIn,
     signOut,
     upgradeToProUser,
@@ -158,5 +261,29 @@ export function useProStatus() {
   return {
     isPro: userData?.isPro || false,
     upgradeToProUser,
+  };
+}
+
+export function useVenues() {
+  const { 
+    userData, 
+    createVenue, 
+    updateVenue, 
+    deleteVenue,
+    addIngredientToVenue,
+    removeIngredientFromVenue,
+    addCocktailToVenue,
+    removeCocktailFromVenue
+  } = useUser();
+  
+  return {
+    venues: userData?.venues || [],
+    createVenue,
+    updateVenue,
+    deleteVenue,
+    addIngredientToVenue,
+    removeIngredientFromVenue,
+    addCocktailToVenue,
+    removeCocktailFromVenue,
   };
 }

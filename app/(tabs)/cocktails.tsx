@@ -17,6 +17,8 @@ import { CocktailCard } from '~/components/CocktailCard';
 import { SearchFilters } from '~/components/SearchFilters';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { SearchFilters as SearchFiltersType, Cocktail } from '~/lib/types/cocktail';
+import { useUserSettings } from '~/lib/contexts/UserContext';
+import { useRouter } from 'expo-router';
 // Removed cn import - no longer used
 
 export default function CocktailsScreen() {
@@ -31,6 +33,8 @@ export default function CocktailsScreen() {
     getStats,
     forceRefresh,
   } = useCocktails();
+  const { settings } = useUserSettings();
+  const router = useRouter();
 
   const [titleSearchQuery, setTitleSearchQuery] = useState('');
   const [debouncedTitleQuery, setDebouncedTitleQuery] = useState('');
@@ -41,7 +45,6 @@ export default function CocktailsScreen() {
   const [searchResults, setSearchResults] = useState<Cocktail[]>([]);
 
   // Get filter options
-  const categories = useMemo(() => getCategories(), [getCategories]);
   const glassTypes = useMemo(() => getGlassTypes(), [getGlassTypes]);
   const allIngredients = useMemo(() => {
     const ingredients = getIngredients();
@@ -164,30 +167,50 @@ export default function CocktailsScreen() {
       <View style={{ paddingHorizontal: 12, flex: 1 }}>
         <Container>
         {/* Header */}
-        <View className="pb-4 flex-row items-center justify-between">
-          <View>
-            <Text className="mb-2 text-2xl font-bold text-foreground">Cocktails</Text>
-            <Text className="text-sm text-muted-foreground">
-              Search from {stats.totalCocktails} recipes
-            </Text>
+        <View className="pb-4">
+          <Text className="mb-2 text-2xl font-bold text-foreground">Cocktails</Text>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <Text className="text-sm text-muted-foreground">
+                {settings?.subscriptionStatus === 'free' 
+                  ? `Search From ${cocktails.length} Free Recipes`
+                  : `Search From ${stats.totalCocktails} Recipes`
+                }
+              </Text>
+              {settings?.subscriptionStatus === 'free' && (
+                <Pressable
+                  onPress={() => router.push('/paywall')}
+                  style={{
+                    marginLeft: 8,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    backgroundColor: '#10B981',
+                    borderRadius: 6,
+                  }}>
+                  <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '600' }}>
+                    Unlock Premium
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <Button
+              variant={hasActiveFilters ? 'primary' : 'secondary'}
+              size="sm"
+              onPress={() => setShowFilters(!showFilters)}
+              className="flex-row items-center">
+              <FontAwesome name="filter" size={16} color="#ffffff" style={{ marginRight: 4 }} />
+              <Text>
+                Filters
+                {hasActiveFilters
+                  ? ` (${
+                      Object.entries(filters).filter(([key, value]) => {
+                        return value !== undefined && value !== '';
+                      }).length
+                    })`
+                  : ''}
+              </Text>
+            </Button>
           </View>
-          <Button
-            variant={hasActiveFilters ? 'primary' : 'secondary'}
-            size="sm"
-            onPress={() => setShowFilters(!showFilters)}
-            className="flex-row items-center">
-            <FontAwesome name="filter" size={16} color="#ffffff" style={{ marginRight: 4 }} />
-            <Text>
-              Filters
-              {hasActiveFilters
-                ? ` (${
-                    Object.entries(filters).filter(([key, value]) => {
-                      return value !== undefined && value !== '';
-                    }).length
-                  })`
-                : ''}
-            </Text>
-          </Button>
         </View>
 
         {/* Filters */}
@@ -196,7 +219,6 @@ export default function CocktailsScreen() {
             <SearchFilters
               filters={filters}
               onFiltersChange={setFilters}
-              categories={categories}
               glassTypes={glassTypes}
               isVisible={showFilters}
               onClose={() => setShowFilters(false)}

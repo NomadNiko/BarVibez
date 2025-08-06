@@ -10,7 +10,6 @@ import { cn } from '~/lib/cn';
 interface SearchFiltersProps {
   filters: SearchFiltersType;
   onFiltersChange: (filters: SearchFiltersType) => void;
-  categories: string[];
   glassTypes: string[];
   isVisible: boolean;
   onClose: () => void;
@@ -83,7 +82,6 @@ function FilterSection({ title, value, options, onSelect }: FilterSectionProps) 
 export function SearchFilters({
   filters,
   onFiltersChange,
-  categories,
   glassTypes,
   isVisible,
   onClose,
@@ -100,11 +98,6 @@ export function SearchFilters({
     { label: 'Non Alcoholic', value: 'Non alcoholic' },
   ];
 
-  const categoryOptions = [
-    { label: 'All Categories', value: '' },
-    ...categories.map((cat) => ({ label: cat, value: cat })),
-  ];
-
   const glassOptions = [
     { label: 'All Glass Types', value: '' },
     ...glassTypes.map((glass) => ({ label: glass, value: glass })),
@@ -115,7 +108,7 @@ export function SearchFilters({
   });
 
   return (
-    <View className="border-t border-border bg-card">
+    <View className="bg-card rounded-xl overflow-hidden">
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border p-4">
         <Text className="text-lg font-semibold text-foreground">Filters</Text>
@@ -139,13 +132,6 @@ export function SearchFilters({
         />
 
         <FilterSection
-          title="Category"
-          value={filters.category}
-          options={categoryOptions}
-          onSelect={(value) => onFiltersChange({ ...filters, category: value })}
-        />
-
-        <FilterSection
           title="Glass Type"
           value={filters.glass}
           options={glassOptions}
@@ -160,11 +146,6 @@ export function SearchFilters({
               {filters.alcoholic && (
                 <View className="bg-primary/10 rounded-full px-2 py-1">
                   <Text className="text-xs text-primary">Type: {filters.alcoholic}</Text>
-                </View>
-              )}
-              {filters.category && (
-                <View className="bg-primary/10 rounded-full px-2 py-1">
-                  <Text className="text-xs text-primary">Category: {filters.category}</Text>
                 </View>
               )}
               {filters.glass && (

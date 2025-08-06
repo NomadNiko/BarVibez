@@ -17,7 +17,7 @@ export default function TabLayout() {
         tabBarShowLabel: false,
         tabBarStyle: {
           paddingTop: 10,
-          paddingBottom: Platform.OS === 'android' ? 5 : 10,
+          paddingBottom: Platform.OS === 'android' ? 10 : 20,
           backgroundColor: '#000000',
           borderTopWidth: 0,
           elevation: 0,
@@ -25,7 +25,7 @@ export default function TabLayout() {
           bottom: 0,
           left: 0,
           right: 0,
-          height: Platform.OS === 'android' ? 56 : 60,
+          height: Platform.OS === 'android' ? 70 : 80,
         },
         tabBarIconStyle: {
           marginTop: 0,
@@ -53,6 +53,14 @@ export default function TabLayout() {
         options={{
           title: 'Cocktails',
           tabBarIcon: ({ color }) => <TabBarIcon name="glass" color={color} />,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="speakeasy"
+        options={{
+          title: 'Speakeasy',
+          tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />,
           headerShown: false,
         }}
       />

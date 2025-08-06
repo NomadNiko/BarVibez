@@ -1,5 +1,5 @@
 import { MMKV } from 'react-native-mmkv';
-import { UserData, DEFAULT_USER_SETTINGS } from '../types/user';
+import { UserData, DEFAULT_USER_SETTINGS, Venue } from '../types/user';
 
 // Initialize MMKV storage
 const storage = new MMKV({
@@ -82,16 +82,36 @@ export class UserStorage {
   }
 
   /**
+   * Create default venue for a user
+   */
+  static createDefaultVenue(userId: string): Venue {
+    const now = new Date().toISOString();
+    return {
+      id: `venue_default_${userId}`,
+      name: 'My Speakeasy',
+      ingredients: [],
+      cocktailIds: [], // Will be synced with favorites
+      customCocktailIds: [],
+      createdAt: now,
+      updatedAt: now,
+      isDefault: true,
+    };
+  }
+
+  /**
    * Create new user data with defaults
    */
   static createNewUserData(userId: string, appStoreId?: string): UserData {
     const now = new Date().toISOString();
+    const defaultVenue = this.createDefaultVenue(userId);
+    
     return {
       userId,
       appStoreId,
       settings: { ...DEFAULT_USER_SETTINGS },
       favorites: [],
       customCocktails: [],
+      venues: [defaultVenue],
       isPro: false,
       createdAt: now,
       updatedAt: now,

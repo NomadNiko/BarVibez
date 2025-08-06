@@ -206,6 +206,93 @@ export default function UserScreen() {
               </View>
               <FontAwesome name="trash" size={16} color="#FF6B6B" />
             </Pressable>
+
+            {/* Test PayWall Button (Testing Only) */}
+            <Pressable
+              onPress={() => router.push('/paywall')}
+              style={{
+                backgroundColor: '#1F2937',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#374151',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <FontAwesome name="dollar" size={20} color="#10B981" style={{ marginRight: 12 }} />
+                <View>
+                  <Text style={{ color: '#10B981', fontSize: 16, fontWeight: '500' }}>
+                    Test PayWall
+                  </Text>
+                  <Text style={{ color: '#999999', fontSize: 12, marginTop: 2 }}>
+                    Testing only - show subscription screen
+                  </Text>
+                </View>
+              </View>
+              <FontAwesome name="chevron-right" size={16} color="#10B981" />
+            </Pressable>
+
+            {/* Test Subscription Status (Testing Only) */}
+            <View
+              style={{
+                backgroundColor: '#1F2937',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#374151',
+              }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <FontAwesome name="flask" size={20} color="#F59E0B" style={{ marginRight: 12 }} />
+                <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: '500' }}>
+                  Test Subscription
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                <Pressable
+                  onPress={() => updateSettings({ subscriptionStatus: 'free' })}
+                  style={{
+                    flex: 1,
+                    backgroundColor: settings?.subscriptionStatus === 'free' ? '#DC2626' : '#374151',
+                    borderRadius: 8,
+                    padding: 10,
+                    marginRight: 6,
+                    alignItems: 'center',
+                  }}>
+                  <Text style={{ 
+                    color: settings?.subscriptionStatus === 'free' ? '#ffffff' : '#9CA3AF', 
+                    fontSize: 14, 
+                    fontWeight: '600' 
+                  }}>
+                    Free
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => updateSettings({ subscriptionStatus: 'premium' })}
+                  style={{
+                    flex: 1,
+                    backgroundColor: settings?.subscriptionStatus === 'premium' ? '#10B981' : '#374151',
+                    borderRadius: 8,
+                    padding: 10,
+                    marginLeft: 6,
+                    alignItems: 'center',
+                  }}>
+                  <Text style={{ 
+                    color: settings?.subscriptionStatus === 'premium' ? '#ffffff' : '#9CA3AF', 
+                    fontSize: 14, 
+                    fontWeight: '600' 
+                  }}>
+                    Premium
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={{ color: '#6B7280', fontSize: 11, marginTop: 8, textAlign: 'center' }}>
+                Current: {settings?.subscriptionStatus || 'free'}
+              </Text>
+            </View>
           </View>
 
           {/* Spacer to push footer to bottom */}

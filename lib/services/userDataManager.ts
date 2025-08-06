@@ -1,4 +1,4 @@
-import { UserData, UserSettings } from '../types/user';
+import { UserData, UserSettings, Venue } from '../types/user';
 import { UserStorage } from '../utils/storage';
 
 /**
@@ -19,6 +19,19 @@ export class UserDataManager {
       if (currentUserId) {
         const userData = UserStorage.getUserData(currentUserId);
         if (userData) {
+          // Ensure venues array exists
+          if (!userData.venues) {
+            userData.venues = [];
+          }
+          
+          // Ensure default venue exists for existing users
+          const hasDefaultVenue = userData.venues.some(v => v.isDefault);
+          if (!hasDefaultVenue) {
+            const defaultVenue = UserStorage.createDefaultVenue(userData.userId);
+            userData.venues = [defaultVenue, ...userData.venues];
+            UserStorage.saveUserData(userData);
+          }
+          
           this.currentUser = userData;
           return userData;
         }
@@ -29,6 +42,19 @@ export class UserDataManager {
       const existingUserData = UserStorage.getUserData(deviceUserId);
       
       if (existingUserData) {
+        // Ensure venues array exists
+        if (!existingUserData.venues) {
+          existingUserData.venues = [];
+        }
+        
+        // Ensure default venue exists for existing users
+        const hasDefaultVenue = existingUserData.venues.some(v => v.isDefault);
+        if (!hasDefaultVenue) {
+          const defaultVenue = UserStorage.createDefaultVenue(existingUserData.userId);
+          existingUserData.venues = [defaultVenue, ...existingUserData.venues];
+          UserStorage.saveUserData(existingUserData);
+        }
+        
         this.currentUser = existingUserData;
         UserStorage.setCurrentUserId(deviceUserId);
       } else {
@@ -51,6 +77,15 @@ export class UserDataManager {
    */
   static getCurrentUser(): UserData | null {
     return this.currentUser;
+  }
+
+  /**
+   * Force update user data (for migrations)
+   */
+  static forceUpdateUserData(userData: UserData): void {
+    this.currentUser = userData;
+    UserStorage.saveUserData(userData);
+    this.notifyListeners();
   }
 
   /**
@@ -246,6 +281,297 @@ export class UserDataManager {
     } catch (error) {
       console.error('Failed to find user by App Store ID:', error);
       return null;
+    }
+  }
+
+  /**
+   * Create a new venue
+   */
+  static createVenue(name: string): Venue {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const newVenue: Venue = {
+        id: `venue_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name,
+        ingredients: [],
+        cocktailIds: [],
+        customCocktailIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: [...(this.currentUser.venues || []), newVenue],
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+      
+      return newVenue;
+    } catch (error) {
+      console.error('Failed to create venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a venue
+   */
+  static updateVenue(venueId: string, updates: Partial<Venue>): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      
+      if (venueIndex === -1) {
+        throw new Error('Venue not found');
+      }
+
+      // Prevent updating default venue's name
+      if (venues[venueIndex].isDefault && updates.name) {
+        delete updates.name;
+      }
+
+      const updatedVenue = {
+        ...venues[venueIndex],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+
+      const newVenues = [...venues];
+      newVenues[venueIndex] = updatedVenue;
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: newVenues,
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to update venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a venue (cannot delete default venue)
+   */
+  static deleteVenue(venueId: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venue = venues.find(v => v.id === venueId);
+      
+      if (!venue) {
+        throw new Error('Venue not found');
+      }
+      
+      if (venue.isDefault) {
+        throw new Error('Cannot delete default venue');
+      }
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: venues.filter(v => v.id !== venueId),
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to delete venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add ingredient to venue
+   */
+  static addIngredientToVenue(venueId: string, ingredient: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      
+      if (venueIndex === -1) {
+        throw new Error('Venue not found');
+      }
+
+      const venue = venues[venueIndex];
+      if (!venue.ingredients.includes(ingredient)) {
+        const updatedVenue = {
+          ...venue,
+          ingredients: [...venue.ingredients, ingredient],
+          updatedAt: new Date().toISOString()
+        };
+
+        const newVenues = [...venues];
+        newVenues[venueIndex] = updatedVenue;
+
+        this.currentUser = {
+          ...this.currentUser,
+          venues: newVenues,
+          updatedAt: new Date().toISOString()
+        };
+
+        UserStorage.saveUserData(this.currentUser);
+        this.notifyListeners();
+      }
+    } catch (error) {
+      console.error('Failed to add ingredient to venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove ingredient from venue
+   */
+  static removeIngredientFromVenue(venueId: string, ingredient: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      
+      if (venueIndex === -1) {
+        throw new Error('Venue not found');
+      }
+
+      const venue = venues[venueIndex];
+      const updatedVenue = {
+        ...venue,
+        ingredients: venue.ingredients.filter(i => i !== ingredient),
+        updatedAt: new Date().toISOString()
+      };
+
+      const newVenues = [...venues];
+      newVenues[venueIndex] = updatedVenue;
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: newVenues,
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to remove ingredient from venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add cocktail to venue
+   */
+  static addCocktailToVenue(venueId: string, cocktailId: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      
+      if (venueIndex === -1) {
+        throw new Error('Venue not found');
+      }
+
+      const venue = venues[venueIndex];
+      
+      // If it's the default venue, add to favorites instead
+      if (venue.isDefault) {
+        this.addToFavorites(cocktailId);
+        return;
+      }
+      
+      if (!venue.cocktailIds.includes(cocktailId)) {
+        const updatedVenue = {
+          ...venue,
+          cocktailIds: [...venue.cocktailIds, cocktailId],
+          updatedAt: new Date().toISOString()
+        };
+
+        const newVenues = [...venues];
+        newVenues[venueIndex] = updatedVenue;
+
+        this.currentUser = {
+          ...this.currentUser,
+          venues: newVenues,
+          updatedAt: new Date().toISOString()
+        };
+
+        UserStorage.saveUserData(this.currentUser);
+        this.notifyListeners();
+      }
+    } catch (error) {
+      console.error('Failed to add cocktail to venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove cocktail from venue
+   */
+  static removeCocktailFromVenue(venueId: string, cocktailId: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      
+      if (venueIndex === -1) {
+        throw new Error('Venue not found');
+      }
+
+      const venue = venues[venueIndex];
+      
+      // If it's the default venue, remove from favorites instead
+      if (venue.isDefault) {
+        this.removeFromFavorites(cocktailId);
+        return;
+      }
+      
+      const updatedVenue = {
+        ...venue,
+        cocktailIds: venue.cocktailIds.filter(id => id !== cocktailId),
+        updatedAt: new Date().toISOString()
+      };
+
+      const newVenues = [...venues];
+      newVenues[venueIndex] = updatedVenue;
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: newVenues,
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to remove cocktail from venue:', error);
+      throw error;
     }
   }
 
