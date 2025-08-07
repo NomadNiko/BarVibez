@@ -7,16 +7,25 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { Button } from '~/components/nativewindui/Button';
 import { DisclaimerStorage } from '~/lib/utils/disclaimerStorage';
+import { useUserSettings } from '~/lib/contexts/UserContext';
 import { APP_CONFIG } from '~/config/app';
 
 export default function DisclaimerScreen() {
+  const { settings } = useUserSettings();
+  
   const handleAccept = async () => {
     try {
       // Store that user has accepted the disclaimer
       DisclaimerStorage.setDisclaimerAccepted();
       
-      // Navigate to main app
-      router.replace('/popular');
+      // Check subscription status and redirect accordingly
+      if (settings?.subscriptionStatus === 'free') {
+        // Redirect to paywall for free users
+        router.replace('/paywall');
+      } else {
+        // Navigate to main app for premium users
+        router.replace('/popular');
+      }
     } catch (error) {
       console.error('Failed to save disclaimer acceptance:', error);
       Alert.alert('Error', 'Failed to save your response. Please try again.');

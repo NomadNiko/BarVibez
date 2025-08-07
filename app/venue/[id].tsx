@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, ScrollView, Pressable, Alert, TextInput, FlatList } from 'react-native';
+import { View, ScrollView, Pressable, Alert, TextInput, FlatList, Dimensions, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { Image } from 'expo-image';
 import { Text } from '~/components/nativewindui/Text';
 import { Button } from '~/components/nativewindui/Button';
 import { BackButton } from '~/components/BackButton';
@@ -14,6 +15,11 @@ import {
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Venue } from '~/lib/types/user';
 import { Cocktail } from '~/lib/types/cocktail';
+import { getCocktailImage } from '~/lib/utils/localImages';
+import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
+import { MeasurementConverter } from '~/lib/utils/measurementConverter';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 type TabType = 'cocktails' | 'ingredients';
 
@@ -27,7 +33,7 @@ export default function VenueDetailScreen() {
     addCocktailToVenue,
     removeCocktailFromVenue 
   } = useVenues();
-  const { favorites } = useFavorites();
+  const { favorites, isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { settings } = useUserSettings();
   const { cocktails, getIngredients } = useCocktails();
   
@@ -35,6 +41,8 @@ export default function VenueDetailScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewCocktail, setPreviewCocktail] = useState<Cocktail | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const venue = venues.find(v => v.id === id);
@@ -64,13 +72,11 @@ export default function VenueDetailScreen() {
       });
     });
     
-    // Filter out ingredients already in venue
-    const venueIngredientsLower = venue.ingredients.map(i => i.toLowerCase());
+    // Filter out ingredients already in venue - use exact matching only
+    const venueIngredientsLower = venue.ingredients.map(i => i.toLowerCase().trim());
     const missing = Array.from(allCocktailIngredients).filter(ing => {
-      const ingLower = ing.toLowerCase();
-      return !venueIngredientsLower.some(vi => 
-        vi === ingLower || vi.includes(ingLower) || ingLower.includes(vi)
-      );
+      const ingLower = ing.toLowerCase().trim();
+      return !venueIngredientsLower.includes(ingLower);
     });
     
     // Sort alphabetically
@@ -81,7 +87,7 @@ export default function VenueDetailScreen() {
   const suggestedCocktails = useMemo(() => {
     if (!venue || venue.ingredients.length === 0) return [];
     
-    const venueIngredients = venue.ingredients.map(i => i.toLowerCase());
+    const venueIngredients = venue.ingredients.map(i => i.toLowerCase().trim());
     const cocktailIds = venue.isDefault ? favorites : venue.cocktailIds;
     
     // Filter available cocktails (not already in venue)
@@ -89,9 +95,9 @@ export default function VenueDetailScreen() {
     
     // Score each cocktail by ingredient matches
     const scoredCocktails = availableCocktails.map(cocktail => {
-      const cocktailIngredients = cocktail.ingredients.map(i => i.name.toLowerCase());
+      const cocktailIngredients = cocktail.ingredients.map(i => i.name.toLowerCase().trim());
       const matchingIngredients = cocktailIngredients.filter(ci => 
-        venueIngredients.some(vi => ci.includes(vi) || vi.includes(ci))
+        venueIngredients.includes(ci)
       );
       const missingCount = cocktailIngredients.length - matchingIngredients.length;
       const hasAllIngredients = missingCount === 0;
@@ -117,8 +123,8 @@ export default function VenueDetailScreen() {
         // Second priority: fewer missing ingredients
         if (a.missingCount !== b.missingCount) return a.missingCount - b.missingCount;
         
-        // Third priority: simpler cocktails (fewer total ingredients)
-        return a.totalIngredients - b.totalIngredients;
+        // Third priority: more complex cocktails (more total ingredients) when missing count is same
+        return b.totalIngredients - a.totalIngredients;
       })
       .slice(0, 50); // Limit to top 50 suggestions
   }, [venue, cocktails, favorites]);
@@ -172,11 +178,30 @@ export default function VenueDetailScreen() {
   };
 
   const handleRemoveCocktail = async (cocktailId: string) => {
-    try {
-      await removeCocktailFromVenue(venue.id, cocktailId);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to remove cocktail');
-    }
+    const cocktail = cocktails.find(c => c.id === cocktailId);
+    const cocktailName = cocktail?.name || 'this cocktail';
+    
+    Alert.alert(
+      'Remove Cocktail',
+      `Are you sure you want to remove "${cocktailName}" from ${venue.name}?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeCocktailFromVenue(venue.id, cocktailId);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to remove cocktail');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleAddIngredient = async (ingredient: string) => {
@@ -195,6 +220,38 @@ export default function VenueDetailScreen() {
     } catch (error) {
       Alert.alert('Error', 'Failed to remove ingredient');
     }
+  };
+
+  const handlePreviewCocktail = (cocktail: Cocktail) => {
+    console.log('Preview cocktail:', cocktail);
+    console.log('Setting preview cocktail and showing modal');
+    setPreviewCocktail(cocktail);
+    setShowPreviewModal(true);
+  };
+
+  const handleFavoriteToggle = async (cocktailId: string, event: any) => {
+    event.stopPropagation();
+    
+    try {
+      if (isFavorite(cocktailId)) {
+        await removeFavorite(cocktailId);
+      } else {
+        await addFavorite(cocktailId);
+      }
+    } catch (error) {
+      console.error('Failed to update favorites:', error);
+    }
+  };
+
+  const cocktailHasMissingIngredients = (cocktail: Cocktail): boolean => {
+    if (!venue) return false;
+    
+    const venueIngredientsLower = venue.ingredients.map(i => i.toLowerCase().trim());
+    const cocktailIngredients = cocktail.ingredients.map(ing => ing.name.toLowerCase().trim());
+    
+    return cocktailIngredients.some(ci => 
+      !venueIngredientsLower.includes(ci)
+    );
   };
 
   return (
@@ -334,11 +391,26 @@ export default function VenueDetailScreen() {
                     </Text>
                   </View>
                   
-                  <Pressable
-                    onPress={() => handleRemoveCocktail(cocktail.id)}
-                    style={{ padding: 8 }}>
-                    <FontAwesome name="times" size={18} color="#FF6B6B" />
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {/* Missing Ingredients Indicator */}
+                    {cocktailHasMissingIngredients(cocktail) && (
+                      <View style={{ padding: 8 }}>
+                        <FontAwesome name="exclamation" size={16} color="#FF8F00" />
+                      </View>
+                    )}
+                    
+                    <Pressable
+                      onPress={() => handlePreviewCocktail(cocktail)}
+                      style={{ padding: 8 }}>
+                      <FontAwesome name="eye" size={18} color="#007AFF" />
+                    </Pressable>
+                    
+                    <Pressable
+                      onPress={() => handleRemoveCocktail(cocktail.id)}
+                      style={{ padding: 8 }}>
+                      <FontAwesome name="times" size={18} color="#FF6B6B" />
+                    </Pressable>
+                  </View>
                 </View>
               ))}
               
@@ -510,8 +582,7 @@ export default function VenueDetailScreen() {
                     if (activeTab === 'cocktails') {
                       const cocktail = item as Cocktail;
                       return (
-                        <Pressable
-                          onPress={() => handleAddCocktail(cocktail.id)}
+                        <View
                           style={{
                             backgroundColor: '#1a1a1a',
                             borderRadius: 8,
@@ -528,8 +599,23 @@ export default function VenueDetailScreen() {
                               {cocktail.category}
                             </Text>
                           </View>
-                          <FontAwesome name="plus-circle" size={20} color="#10B981" />
-                        </Pressable>
+                          
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            {/* Preview Button */}
+                            <Pressable
+                              onPress={() => handlePreviewCocktail(cocktail)}
+                              style={{ padding: 8 }}>
+                              <FontAwesome name="eye" size={18} color="#007AFF" />
+                            </Pressable>
+                            
+                            {/* Add Button */}
+                            <Pressable
+                              onPress={() => handleAddCocktail(cocktail.id)}
+                              style={{ padding: 8 }}>
+                              <FontAwesome name="plus-circle" size={20} color="#10B981" />
+                            </Pressable>
+                          </View>
+                        </View>
                       );
                     } else {
                       const ingredient = item as string;
@@ -608,11 +694,7 @@ export default function VenueDetailScreen() {
                     data={suggestedCocktails}
                     keyExtractor={(item) => item.cocktail.id}
                     renderItem={({ item }) => (
-                      <Pressable
-                        onPress={() => {
-                          handleAddCocktail(item.cocktail.id);
-                          setShowSuggestModal(false);
-                        }}
+                      <View
                         style={{
                           backgroundColor: item.hasAllIngredients ? '#064e3b' : '#1a1a1a',
                           borderRadius: 8,
@@ -640,26 +722,46 @@ export default function VenueDetailScreen() {
                               {item.cocktail.category} • {item.cocktail.glass}
                             </Text>
                           </View>
-                          <View style={{ alignItems: 'center' }}>
-                            <View style={{
-                              backgroundColor: item.hasAllIngredients ? '#10B981' : '#9C27B0',
-                              borderRadius: 20,
-                              width: 40,
-                              height: 40,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              marginBottom: 4,
-                            }}>
-                              <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold' }}>
-                                {item.hasAllIngredients ? '✓' : item.missingCount}
+                          
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            {/* Preview Button */}
+                            <Pressable
+                              onPress={() => handlePreviewCocktail(item.cocktail)}
+                              style={{ padding: 8 }}>
+                              <FontAwesome name="eye" size={18} color="#007AFF" />
+                            </Pressable>
+                            
+                            {/* Add Button */}
+                            <Pressable
+                              onPress={() => {
+                                handleAddCocktail(item.cocktail.id);
+                                setShowSuggestModal(false);
+                              }}
+                              style={{ padding: 8 }}>
+                              <FontAwesome name="plus-circle" size={20} color="#10B981" />
+                            </Pressable>
+                            
+                            <View style={{ alignItems: 'center' }}>
+                              <View style={{
+                                backgroundColor: item.hasAllIngredients ? '#10B981' : '#9C27B0',
+                                borderRadius: 20,
+                                width: 40,
+                                height: 40,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                marginBottom: 4,
+                              }}>
+                                <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold' }}>
+                                  {item.hasAllIngredients ? '✓' : item.missingCount}
+                                </Text>
+                              </View>
+                              <Text style={{ color: '#666666', fontSize: 10 }}>
+                                {item.hasAllIngredients ? 'ready' : 'missing'}
                               </Text>
                             </View>
-                            <Text style={{ color: '#666666', fontSize: 10 }}>
-                              {item.hasAllIngredients ? 'ready' : 'missing'}
-                            </Text>
                           </View>
                         </View>
-                      </Pressable>
+                      </View>
                     )}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
@@ -776,6 +878,163 @@ export default function VenueDetailScreen() {
                 />
               </View>
             </SafeAreaView>
+          </View>
+        )}
+
+        {/* Cocktail Preview Modal */}
+        {showPreviewModal && previewCocktail && (
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}>
+            <ScrollView
+              style={{
+                width: screenWidth * 0.85,
+                maxHeight: screenHeight * 0.85,
+              }}
+              contentContainerStyle={{
+                backgroundColor: '#1a1a1a',
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: '#333333',
+                padding: 20,
+                minHeight: 400,
+              }}
+              showsVerticalScrollIndicator={false}>
+              
+              {/* Close Button */}
+              <Pressable
+                onPress={() => setShowPreviewModal(false)}
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  zIndex: 10,
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  borderRadius: 18,
+                  width: 36,
+                  height: 36,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}>
+                <FontAwesome name="times" size={16} color="#ffffff" />
+              </Pressable>
+
+              {/* Favorite Button */}
+              <Pressable
+                onPress={(event) => handleFavoriteToggle(previewCocktail.id, event)}
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  left: 12,
+                  zIndex: 10,
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  borderRadius: 18,
+                  width: 36,
+                  height: 36,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}>
+                <FontAwesome 
+                  name={isFavorite(previewCocktail.id) ? 'heart' : 'heart-o'} 
+                  size={16} 
+                  color={isFavorite(previewCocktail.id) ? '#FF6B6B' : '#ffffff'} 
+                />
+              </Pressable>
+
+              {/* Cocktail Name */}
+              <Text style={{ 
+                fontSize: 24, 
+                fontWeight: 'bold', 
+                color: '#ffffff', 
+                textAlign: 'center',
+                marginTop: 40,
+                marginBottom: 20,
+              }}>
+                {previewCocktail.name}
+              </Text>
+              
+              {/* Images Side by Side */}
+              <View style={{ 
+                flexDirection: 'row', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                marginBottom: 24,
+                gap: 16,
+              }}>
+                {/* Main Image */}
+                {previewCocktail.image && getCocktailImage(previewCocktail.image) && (
+                  <Image
+                    source={getCocktailImage(previewCocktail.image)}
+                    style={{ width: 120, height: 120, borderRadius: 12 }}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
+                )}
+                
+                {/* Glassware */}
+                <Image
+                  source={getGlassImageNormalized(previewCocktail.glass)}
+                  style={{ width: 120, height: 120, borderRadius: 12 }}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                />
+              </View>
+              
+              {/* Ingredients */}
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ 
+                  fontSize: 18, 
+                  fontWeight: 'bold', 
+                  color: '#ffffff', 
+                  marginBottom: 12 
+                }}>
+                  Ingredients
+                </Text>
+                {previewCocktail.ingredients.map((ingredient, idx) => (
+                  <Text key={idx} style={{ 
+                    color: '#ffffff', 
+                    fontSize: 16, 
+                    marginBottom: 6,
+                    lineHeight: 24,
+                  }}>
+                    • {ingredient.measure ? `${MeasurementConverter.convertIngredientMeasure(
+                      ingredient.measure, 
+                      settings?.measurements || 'oz'
+                    )} ` : ''}{ingredient.name}
+                  </Text>
+                ))}
+              </View>
+              
+              {/* Instructions */}
+              <View>
+                <Text style={{ 
+                  fontSize: 18, 
+                  fontWeight: 'bold', 
+                  color: '#ffffff', 
+                  marginBottom: 12 
+                }}>
+                  Instructions
+                </Text>
+                <Text style={{ 
+                  color: '#ffffff', 
+                  fontSize: 16, 
+                  lineHeight: 24 
+                }}>
+                  {previewCocktail.instructions.en}
+                </Text>
+              </View>
+              
+              {/* Bottom spacer */}
+              <View style={{ height: 20 }} />
+            </ScrollView>
           </View>
         )}
       </View>

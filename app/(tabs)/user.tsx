@@ -7,7 +7,6 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { Container } from '~/components/Container';
 import { useUserSettings, useProStatus, useFavorites } from '~/lib/contexts/UserContext';
-import { DisclaimerStorage } from '~/lib/utils/disclaimerStorage';
 import { APP_CONFIG } from '~/config/app';
 
 export default function UserScreen() {
@@ -34,30 +33,6 @@ export default function UserScreen() {
     Linking.openURL(APP_CONFIG.supportUrl);
   };
 
-  const handleClearDisclaimer = () => {
-    Alert.alert(
-      'Clear Disclaimer',
-      'This will clear the age verification disclaimer and you will see it again on next app launch. This is for testing purposes only.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            try {
-              DisclaimerStorage.clearDisclaimerAcceptance();
-              Alert.alert('Success', 'Disclaimer cleared. You will see it on next app launch.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear disclaimer');
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleSettingsPress = () => {
     router.push('/modal');
@@ -179,150 +154,33 @@ export default function UserScreen() {
               <FontAwesome name="external-link" size={16} color="#666666" />
             </Pressable>
 
-            {/* Clear Disclaimer Button (Testing Only) */}
-            <Pressable
-              onPress={handleClearDisclaimer}
-              style={{
-                backgroundColor: '#2D1B24',
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: '#5D2E3C',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <FontAwesome name="warning" size={20} color="#FF6B6B" style={{ marginRight: 12 }} />
-                <View>
-                  <Text style={{ color: '#FF6B6B', fontSize: 16, fontWeight: '500' }}>
-                    Clear Disclaimer
-                  </Text>
-                  <Text style={{ color: '#999999', fontSize: 12, marginTop: 2 }}>
-                    Testing only - resets age verification
-                  </Text>
-                </View>
-              </View>
-              <FontAwesome name="trash" size={16} color="#FF6B6B" />
-            </Pressable>
-
-            {/* Test PayWall Button (Testing Only) */}
-            <Pressable
-              onPress={() => router.push('/paywall')}
-              style={{
-                backgroundColor: '#1F2937',
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: '#374151',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <FontAwesome name="dollar" size={20} color="#10B981" style={{ marginRight: 12 }} />
-                <View>
-                  <Text style={{ color: '#10B981', fontSize: 16, fontWeight: '500' }}>
-                    Test PayWall
-                  </Text>
-                  <Text style={{ color: '#999999', fontSize: 12, marginTop: 2 }}>
-                    Testing only - show subscription screen
-                  </Text>
-                </View>
-              </View>
-              <FontAwesome name="chevron-right" size={16} color="#10B981" />
-            </Pressable>
-
-            {/* Test Subscription Status (Testing Only) */}
-            <View
-              style={{
-                backgroundColor: '#1F2937',
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: '#374151',
-              }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <FontAwesome name="flask" size={20} color="#F59E0B" style={{ marginRight: 12 }} />
-                <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: '500' }}>
-                  Test Subscription
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-                <Pressable
-                  onPress={() => updateSettings({ subscriptionStatus: 'free' })}
-                  style={{
-                    flex: 1,
-                    backgroundColor: settings?.subscriptionStatus === 'free' ? '#DC2626' : '#374151',
-                    borderRadius: 8,
-                    padding: 10,
-                    marginRight: 6,
-                    alignItems: 'center',
-                  }}>
-                  <Text style={{ 
-                    color: settings?.subscriptionStatus === 'free' ? '#ffffff' : '#9CA3AF', 
-                    fontSize: 14, 
-                    fontWeight: '600' 
-                  }}>
-                    Free
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => updateSettings({ subscriptionStatus: 'premium' })}
-                  style={{
-                    flex: 1,
-                    backgroundColor: settings?.subscriptionStatus === 'premium' ? '#10B981' : '#374151',
-                    borderRadius: 8,
-                    padding: 10,
-                    marginLeft: 6,
-                    alignItems: 'center',
-                  }}>
-                  <Text style={{ 
-                    color: settings?.subscriptionStatus === 'premium' ? '#ffffff' : '#9CA3AF', 
-                    fontSize: 14, 
-                    fontWeight: '600' 
-                  }}>
-                    Premium
-                  </Text>
-                </Pressable>
-              </View>
-              <Text style={{ color: '#6B7280', fontSize: 11, marginTop: 8, textAlign: 'center' }}>
-                Current: {settings?.subscriptionStatus || 'free'}
-              </Text>
-            </View>
           </View>
-
-          {/* Spacer to push footer to bottom */}
-          <View style={{ flex: 1 }} />
 
           {/* Privacy Footer */}
           <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-            <Pressable onPress={handlePrivacyPress} style={{ marginBottom: 12 }}>
+            <Pressable onPress={handlePrivacyPress}>
               <Text style={{ 
                 color: '#007AFF', 
                 fontSize: 14, 
-                textDecorationLine: 'underline' 
+                textDecorationLine: 'underline',
+                lineHeight: 16
               }}>
                 Privacy Policy
               </Text>
             </Pressable>
-
             <Text style={{ 
               color: '#666666', 
               fontSize: 12, 
               textAlign: 'center',
-              marginBottom: 8
+              lineHeight: 14
             }}>
               {APP_CONFIG.copyright}
             </Text>
-
             <Text style={{ 
               color: '#666666', 
               fontSize: 12, 
-              textAlign: 'center' 
+              textAlign: 'center',
+              lineHeight: 14
             }}>
               Version {APP_CONFIG.version}
             </Text>

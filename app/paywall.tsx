@@ -29,10 +29,23 @@ export default function PayWallScreen() {
   const handleSubscriptionSelect = async (optionId: string) => {
     if (optionId === 'free') {
       await updateSettings({ subscriptionStatus: 'free' });
+      // Navigate to main app for free users
+      router.replace('/popular');
     } else {
-      await updateSettings({ subscriptionStatus: 'premium' });
+      // Navigate to purchase screen for paid subscriptions
+      const selectedOption = subscriptionOptions.find(option => option.id === optionId);
+      if (selectedOption) {
+        router.push({
+          pathname: '/purchase',
+          params: {
+            optionId: selectedOption.id,
+            title: selectedOption.title,
+            price: selectedOption.price,
+            period: selectedOption.period || '',
+          }
+        });
+      }
     }
-    router.back();
   };
 
   return (

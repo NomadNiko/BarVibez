@@ -168,11 +168,26 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="venue-cocktails/[id]"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                    }}
+                  />
+                  <Stack.Screen
                     name="paywall"
                     options={{
                       headerShown: false,
                       presentation: 'fullScreenModal',
                       animation: 'fade',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="purchase"
+                    options={{
+                      headerShown: false,
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom',
                     }}
                   />
                 </Stack>

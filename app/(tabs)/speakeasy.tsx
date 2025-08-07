@@ -6,13 +6,14 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { Button } from '~/components/nativewindui/Button';
 import { Container } from '~/components/Container';
-import { useVenues, useFavorites } from '~/lib/contexts/UserContext';
+import { useVenues, useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
 import { Venue } from '~/lib/types/user';
 
 export default function SpeakeasyScreen() {
   const router = useRouter();
   const { venues, createVenue, deleteVenue } = useVenues();
   const { favorites } = useFavorites();
+  const { settings } = useUserSettings();
   const [showNewVenueModal, setShowNewVenueModal] = useState(false);
   const [newVenueName, setNewVenueName] = useState('');
 
@@ -65,6 +66,13 @@ export default function SpeakeasyScreen() {
 
   const handleVenuePress = (venue: Venue) => {
     router.push({
+      pathname: '/venue-cocktails/[id]',
+      params: { id: venue.id },
+    });
+  };
+
+  const handleEditVenue = (venue: Venue) => {
+    router.push({
       pathname: '/venue/[id]',
       params: { id: venue.id },
     });
@@ -84,7 +92,14 @@ export default function SpeakeasyScreen() {
 
         {/* Add New Venue Button */}
         <Pressable
-          onPress={() => setShowNewVenueModal(true)}
+          onPress={() => {
+            // Check if user is on free plan and trigger paywall
+            if (settings?.subscriptionStatus === 'free') {
+              router.push('/paywall');
+              return;
+            }
+            setShowNewVenueModal(true);
+          }}
           style={{
             backgroundColor: '#10B981',
             borderRadius: 12,
@@ -154,18 +169,31 @@ export default function SpeakeasyScreen() {
                     </View>
                   </View>
                   
-                  {!venue.isDefault && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Pressable
                       onPress={(e) => {
                         e.stopPropagation();
-                        handleDeleteVenue(venue);
+                        handleEditVenue(venue);
                       }}
                       style={{
                         padding: 8,
                       }}>
-                      <FontAwesome name="trash-o" size={18} color="#FF6B6B" />
+                      <FontAwesome name="edit" size={18} color="#007AFF" />
                     </Pressable>
-                  )}
+                    
+                    {!venue.isDefault && (
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleDeleteVenue(venue);
+                        }}
+                        style={{
+                          padding: 8,
+                        }}>
+                        <FontAwesome name="trash-o" size={18} color="#FF6B6B" />
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
               </Pressable>
             );
