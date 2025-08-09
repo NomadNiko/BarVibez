@@ -7,6 +7,8 @@ import {
   ScrollView,
   Pressable,
   TouchableOpacity,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -19,7 +21,13 @@ import { useCocktails } from '~/lib/hooks/useCocktails';
 import { SearchFilters as SearchFiltersType, Cocktail } from '~/lib/types/cocktail';
 import { useUserSettings } from '~/lib/contexts/UserContext';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import { getCocktailImage } from '~/lib/utils/localImages';
+import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
+import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 // Removed cn import - no longer used
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function CocktailsScreen() {
   const {
@@ -43,6 +51,8 @@ export default function CocktailsScreen() {
   const [filters, setFilters] = useState<SearchFiltersType>({});
   const [showFilters, setShowFilters] = useState(false);
   const [searchResults, setSearchResults] = useState<Cocktail[]>([]);
+  const [selectedCocktail, setSelectedCocktail] = useState<Cocktail | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   // Get filter options
   const glassTypes = useMemo(() => getGlassTypes(), [getGlassTypes]);
@@ -116,6 +126,16 @@ export default function CocktailsScreen() {
     setShowFilters(false);
   };
 
+  const handleCocktailPress = (cocktail: Cocktail) => {
+    setSelectedCocktail(cocktail);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedCocktail(null);
+  };
+
 
   const removeIngredient = (ingredient: string) => {
     setSelectedIngredients(selectedIngredients.filter((ing) => ing !== ingredient));
@@ -187,7 +207,7 @@ export default function CocktailsScreen() {
                     backgroundColor: '#10B981',
                     borderRadius: 6,
                   }}>
-                  <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '600' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 11 }}>
                     Unlock Premium
                   </Text>
                 </Pressable>
@@ -303,7 +323,7 @@ export default function CocktailsScreen() {
         <FlatList
           data={displayedCocktails}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <CocktailCard cocktail={item} />}
+          renderItem={({ item }) => <CocktailCard cocktail={item} onPress={() => handleCocktailPress(item)} />}
           refreshControl={<RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
@@ -327,6 +347,138 @@ export default function CocktailsScreen() {
         />
         </Container>
       </View>
+
+      {/* Cocktail Preview Modal */}
+      {showModal && selectedCocktail && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <ScrollView
+            style={{
+              width: screenWidth * 0.85,
+              maxHeight: screenHeight * 0.85,
+            }}
+            contentContainerStyle={{
+              backgroundColor: '#1a1a1a',
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: '#333333',
+              padding: 20,
+              minHeight: 400,
+            }}
+            showsVerticalScrollIndicator={false}>
+            
+            {/* Close Button */}
+            <Pressable
+              onPress={handleCloseModal}
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                zIndex: 10,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                borderRadius: 18,
+                width: 36,
+                height: 36,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <FontAwesome name="times" size={16} color="#ffffff" />
+            </Pressable>
+
+            {/* Cocktail Name */}
+            <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 20 }}>
+              <Text style={{ 
+                fontSize: 24, 
+                color: '#ffffff', 
+                textAlign: 'center'
+              }}>
+                {selectedCocktail.name}
+              </Text>
+            </View>
+            
+            {/* Images Side by Side */}
+            <View style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              marginBottom: 24,
+              gap: 16,
+            }}>
+              {/* Main Image */}
+              {selectedCocktail.image && getCocktailImage(selectedCocktail.image) && (
+                <Image
+                  source={getCocktailImage(selectedCocktail.image)}
+                  style={{ width: 120, height: 120, borderRadius: 12 }}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+              )}
+              
+              {/* Glassware */}
+              <Image
+                source={getGlassImageNormalized(selectedCocktail.glass)}
+                style={{ width: 120, height: 120, borderRadius: 12 }}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            </View>
+            
+            {/* Ingredients */}
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{ 
+                fontSize: 18, 
+                color: '#ffffff', 
+                marginBottom: 12 
+              }}>
+                Ingredients
+              </Text>
+              {selectedCocktail.ingredients.map((ingredient, idx) => (
+                <Text key={idx} style={{ 
+                  color: '#ffffff', 
+                  fontSize: 16, 
+                  marginBottom: 6,
+                  lineHeight: 24,
+                }}>
+                  • {ingredient.measure ? `${MeasurementConverter.convertIngredientMeasure(
+                    ingredient.measure, 
+                    settings?.measurements || 'oz'
+                  )} ` : ''}{ingredient.name}
+                </Text>
+              ))}
+            </View>
+            
+            {/* Instructions */}
+            <View>
+              <Text style={{ 
+                fontSize: 18, 
+                color: '#ffffff', 
+                marginBottom: 12 
+              }}>
+                Instructions
+              </Text>
+              <Text style={{ 
+                color: '#ffffff', 
+                fontSize: 16, 
+                lineHeight: 24 
+              }}>
+                {selectedCocktail.instructions.en}
+              </Text>
+            </View>
+            
+            {/* Bottom spacer */}
+            <View style={{ height: 20 }} />
+          </ScrollView>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

@@ -15,7 +15,15 @@
       "Bash(cp:*)",
       "Bash(mogrify:*)",
       "Bash(identify:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(mv:*)",
+      "Bash(tail:*)",
+      "Bash(npx expo install:*)",
+      "WebFetch(domain:www.revenuecat.com)",
+      "WebFetch(domain:www.revenuecat.com)",
+      "WebFetch(domain:www.revenuecat.com)",
+      "WebFetch(domain:expo.dev)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

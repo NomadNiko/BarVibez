@@ -1,11 +1,11 @@
-import { Link, Tabs } from 'expo-router';
-import { useColorScheme, Platform, View } from 'react-native';
-import { HeaderButton } from '../../components/HeaderButton';
+import { Tabs } from 'expo-router';
+import { Platform, View } from 'react-native';
+// import { HeaderButton } from '../../components/HeaderButton'; // Unused
 import { TabBarIcon } from '../../components/TabBarIcon';
 
 export default function TabLayout() {
   // Force dark mode for bartending app
-  const colorScheme = 'dark';
+  // const colorScheme = 'dark'; // Unused
 
   return (
     <>

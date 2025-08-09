@@ -1,6 +1,11 @@
 export type MeasurementSystem = 'ml' | 'oz';
 export type SubscriptionStatus = 'free' | 'premium';
 
+export interface CocktailIngredientInput {
+  name: string;
+  measure?: string;
+}
+
 export interface Venue {
   id: string;
   name: string;
@@ -53,6 +58,30 @@ export interface UserContextType {
   removeIngredientFromVenue: (venueId: string, ingredient: string) => Promise<void>;
   addCocktailToVenue: (venueId: string, cocktailId: string) => Promise<void>;
   removeCocktailFromVenue: (venueId: string, cocktailId: string) => Promise<void>;
+  
+  // User cocktail methods
+  createUserCocktail: (
+    name: string, 
+    ingredients: CocktailIngredientInput[], 
+    instructions: string, 
+    glass: string, 
+    venueIds: string[]
+  ) => Promise<any>;
+  getUserCocktail: (cocktailId: string) => any | null;
+  getAllUserCocktails: () => any[];
+  updateUserCocktail: (
+    cocktailId: string,
+    updates: {
+      name?: string;
+      ingredients?: CocktailIngredientInput[];
+      instructions?: string;
+      glass?: string;
+      venueIds?: string[];
+    }
+  ) => Promise<void>;
+  deleteUserCocktail: (cocktailId: string) => Promise<void>;
+  addCustomCocktailToVenue: (venueId: string, cocktailId: string) => Promise<void>;
+  removeCustomCocktailFromVenue: (venueId: string, cocktailId: string) => Promise<void>;
   
   // User management
   signIn: (appStoreId: string) => Promise<void>;

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { UserData, UserContextType, UserSettings, Venue } from '../types/user';
+import { UserData, UserContextType, UserSettings, Venue, CocktailIngredientInput } from '../types/user';
+import { UserCocktail } from '../types/cocktail';
 import { UserDataManager } from '../services/userDataManager';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -202,6 +203,85 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
+  // User cocktail methods
+  const createUserCocktail = async (
+    name: string, 
+    ingredients: CocktailIngredientInput[], 
+    instructions: string, 
+    glass: string, 
+    venueIds: string[]
+  ): Promise<UserCocktail> => {
+    try {
+      setError(null);
+      return UserDataManager.createUserCocktail(name, ingredients, instructions, glass, venueIds);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create cocktail';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const getUserCocktail = (cocktailId: string): UserCocktail | null => {
+    return UserDataManager.getUserCocktail(cocktailId);
+  };
+
+  const getAllUserCocktails = (): UserCocktail[] => {
+    return UserDataManager.getAllUserCocktails();
+  };
+
+  const updateUserCocktail = async (
+    cocktailId: string,
+    updates: {
+      name?: string;
+      ingredients?: CocktailIngredientInput[];
+      instructions?: string;
+      glass?: string;
+      venueIds?: string[];
+    }
+  ): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.updateUserCocktail(cocktailId, updates);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update cocktail';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const deleteUserCocktail = async (cocktailId: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.deleteUserCocktail(cocktailId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete cocktail';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const addCustomCocktailToVenue = async (venueId: string, cocktailId: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.addCustomCocktailToVenue(venueId, cocktailId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add cocktail to venue';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const removeCustomCocktailFromVenue = async (venueId: string, cocktailId: string): Promise<void> => {
+    try {
+      setError(null);
+      UserDataManager.removeCustomCocktailFromVenue(venueId, cocktailId);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove cocktail from venue';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const contextValue: UserContextType = {
     userData,
     isLoading,
@@ -217,6 +297,13 @@ export function UserProvider({ children }: UserProviderProps) {
     removeIngredientFromVenue,
     addCocktailToVenue,
     removeCocktailFromVenue,
+    createUserCocktail,
+    getUserCocktail,
+    getAllUserCocktails,
+    updateUserCocktail,
+    deleteUserCocktail,
+    addCustomCocktailToVenue,
+    removeCustomCocktailFromVenue,
     signIn,
     signOut,
     upgradeToProUser,
@@ -273,7 +360,9 @@ export function useVenues() {
     addIngredientToVenue,
     removeIngredientFromVenue,
     addCocktailToVenue,
-    removeCocktailFromVenue
+    removeCocktailFromVenue,
+    addCustomCocktailToVenue,
+    removeCustomCocktailFromVenue
   } = useUser();
   
   return {
@@ -285,5 +374,29 @@ export function useVenues() {
     removeIngredientFromVenue,
     addCocktailToVenue,
     removeCocktailFromVenue,
+    addCustomCocktailToVenue,
+    removeCustomCocktailFromVenue,
+  };
+}
+
+export function useUserCocktails() {
+  const {
+    createUserCocktail,
+    getUserCocktail,
+    getAllUserCocktails,
+    updateUserCocktail,
+    deleteUserCocktail,
+    addCustomCocktailToVenue,
+    removeCustomCocktailFromVenue
+  } = useUser();
+  
+  return {
+    createUserCocktail,
+    getUserCocktail,
+    getAllUserCocktails,
+    updateUserCocktail,
+    deleteUserCocktail,
+    addCustomCocktailToVenue,
+    removeCustomCocktailFromVenue,
   };
 }

@@ -66,7 +66,7 @@ export default function PurchaseScreen() {
             <FontAwesome name="times" size={24} color="#888888" />
           </Pressable>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#ffffff' }}>
+            <Text style={{ fontSize: 18, color: '#ffffff' }}>
               Complete Purchase
             </Text>
           </View>
@@ -85,7 +85,7 @@ export default function PurchaseScreen() {
               style={{ width: 80, height: 80, marginBottom: 16 }}
               contentFit="contain"
             />
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#ffffff', textAlign: 'center' }}>
+            <Text style={{ fontSize: 24, color: '#ffffff', textAlign: 'center' }}>
               Bar Vibez Premium
             </Text>
           </View>
@@ -99,10 +99,10 @@ export default function PurchaseScreen() {
             borderWidth: 1,
             borderColor: '#333333',
           }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#ffffff', marginBottom: 16, textAlign: 'center', lineHeight: 28 }}>
+            <Text style={{ fontSize: 20, color: '#ffffff', marginBottom: 16, textAlign: 'center', lineHeight: 28 }}>
               {title}
             </Text>
-            <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#10B981', marginBottom: 16, textAlign: 'center', lineHeight: 40, paddingVertical: 4 }}>
+            <Text style={{ fontSize: 32, color: '#10B981', marginBottom: 16, textAlign: 'center', lineHeight: 40, paddingVertical: 4 }}>
               {price}
             </Text>
             {period && (
@@ -113,8 +113,8 @@ export default function PurchaseScreen() {
             
             {/* Features */}
             <View style={{ borderTopWidth: 1, borderTopColor: '#333333', paddingTop: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#ffffff', marginBottom: 12 }}>
-                What's included:
+              <Text style={{ fontSize: 16, color: '#ffffff', marginBottom: 12 }}>
+                What&apos;s included:
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                 <FontAwesome name="check-circle" size={16} color="#4CAF50" />
@@ -167,14 +167,14 @@ export default function PurchaseScreen() {
               {isProcessing ? (
                 <>
                   <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 16 }}>
                     Processing...
                   </Text>
                 </>
               ) : (
                 <>
                   <FontAwesome name="credit-card" size={16} color="#ffffff" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 16 }}>
                     Purchase {price}
                   </Text>
                 </>

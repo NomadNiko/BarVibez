@@ -14,14 +14,19 @@ import { useEffect } from 'react';
 interface CocktailCardProps {
   cocktail: Cocktail;
   className?: string;
+  onPress?: () => void;
 }
 
-export function CocktailCard({ cocktail, className }: CocktailCardProps) {
+export function CocktailCard({ cocktail, className, onPress }: CocktailCardProps) {
   const { addFavorite, removeFavorite, isFavorite } = useFavorites();
   const { settings } = useUserSettings();
 
   const handlePress = () => {
-    router.push(`/cocktail/${cocktail.id}`);
+    if (onPress) {
+      onPress();
+    } else {
+      router.push(`/cocktail/${cocktail.id}`);
+    }
   };
 
   const handleFavoriteToggle = async (event: any) => {

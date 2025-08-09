@@ -3,7 +3,7 @@ import { View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+// import FontAwesome from '@expo/vector-icons/FontAwesome'; // Unused
 import { Text } from '~/components/nativewindui/Text';
 import { Button } from '~/components/nativewindui/Button';
 import { DisclaimerStorage } from '~/lib/utils/disclaimerStorage';
@@ -64,12 +64,11 @@ export default function DisclaimerScreen() {
           <Text style={{ 
             color: '#ffffff', 
             fontSize: 28, 
-            fontWeight: 'bold', 
             textAlign: 'center',
             letterSpacing: 1,
             marginBottom: 8,
             lineHeight: 36,
-            paddingVertical: 4
+            paddingVertical: 4,
           }}>
             {APP_CONFIG.name}
           </Text>
@@ -77,9 +76,9 @@ export default function DisclaimerScreen() {
             color: '#888888', 
             fontSize: 16, 
             textAlign: 'center',
-            fontStyle: 'italic'
+            fontStyle: 'italic',
           }}>
-            Your Personal Cocktail Companion
+            Mixology Made Simple
           </Text>
         </View>
 
@@ -97,7 +96,7 @@ export default function DisclaimerScreen() {
             fontSize: 18, 
             lineHeight: 26,
             textAlign: 'center',
-            marginBottom: 20
+            marginBottom: 20,
           }}>
             Age Verification Required
           </Text>
@@ -106,11 +105,11 @@ export default function DisclaimerScreen() {
             color: '#cccccc', 
             fontSize: 16, 
             lineHeight: 24,
-            textAlign: 'center'
+            textAlign: 'center',
           }}>
-            By clicking "I Agree" below, you confirm that you are of legal drinking age in your current location.
+            By clicking &ldquo;I Agree&rdquo; below, you confirm that you are of legal drinking age in your current location.
             {'\n\n'}
-            Please drink responsibly and always follow local laws. We do not take responsibility for anyone's actions after consuming beverages containing alcohol.
+            Please drink responsibly and always follow local laws. We do not take responsibility for anyone&apos;s actions after consuming beverages containing alcohol.
           </Text>
         </View>
 
@@ -127,8 +126,7 @@ export default function DisclaimerScreen() {
             <Text style={{ 
               color: '#ffffff', 
               fontSize: 18, 
-              fontWeight: '600',
-              textAlign: 'center' 
+              textAlign: 'center',
             }}>
               I Agree - I am of Legal Drinking Age
             </Text>
@@ -148,8 +146,8 @@ export default function DisclaimerScreen() {
             <Text style={{ 
               color: '#999999', 
               fontSize: 16, 
-              textAlign: 'center' 
-            }}>
+              textAlign: 'center',
+              }}>
               I am not of legal drinking age
             </Text>
           </Button>
@@ -162,7 +160,7 @@ export default function DisclaimerScreen() {
             fontSize: 12, 
             textAlign: 'center',
             lineHeight: 18,
-            marginBottom: 8
+            marginBottom: 8,
           }}>
             By using this app, you agree to our terms of service.
             {'\n'}
@@ -171,7 +169,7 @@ export default function DisclaimerScreen() {
           <Text style={{ 
             color: '#666666', 
             fontSize: 11, 
-            textAlign: 'center' 
+            textAlign: 'center',
           }}>
             {APP_CONFIG.copyright} • Version {APP_CONFIG.version}
           </Text>

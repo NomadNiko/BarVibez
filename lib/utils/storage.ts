@@ -1,5 +1,6 @@
 import { MMKV } from 'react-native-mmkv';
 import { UserData, DEFAULT_USER_SETTINGS, Venue } from '../types/user';
+import { UserCocktail } from '../types/cocktail';
 
 // Initialize MMKV storage
 const storage = new MMKV({
@@ -11,6 +12,7 @@ const storage = new MMKV({
 const STORAGE_KEYS = {
   CURRENT_USER_ID: '@cocktail_native:current_user_id',
   USER_DATA: '@cocktail_native:user_data',
+  USER_COCKTAILS: '@cocktail_native:user_cocktails',
   DEVICE_ID: '@cocktail_native:device_id',
 } as const;
 
@@ -19,6 +21,13 @@ const STORAGE_KEYS = {
  */
 const getUserKey = (userId: string, key: string): string => {
   return `${STORAGE_KEYS.USER_DATA}:${userId}:${key}`;
+};
+
+/**
+ * Generate a key for user cocktails
+ */
+const getUserCocktailKey = (cocktailId: string): string => {
+  return `${STORAGE_KEYS.USER_COCKTAILS}:${cocktailId}`;
 };
 
 /**
@@ -208,6 +217,63 @@ export class UserStorage {
       }).filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
     } catch (error) {
       console.error('Failed to get all user IDs:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Save a user cocktail
+   */
+  static saveUserCocktail(cocktail: UserCocktail): void {
+    try {
+      const key = getUserCocktailKey(cocktail.id);
+      storage.set(key, JSON.stringify(cocktail));
+    } catch (error) {
+      console.error('Failed to save user cocktail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a user cocktail by ID
+   */
+  static getUserCocktail(cocktailId: string): UserCocktail | null {
+    try {
+      const key = getUserCocktailKey(cocktailId);
+      const cocktailData = storage.getString(key);
+      return cocktailData ? JSON.parse(cocktailData) : null;
+    } catch (error) {
+      console.error('Failed to get user cocktail:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete a user cocktail
+   */
+  static deleteUserCocktail(cocktailId: string): void {
+    try {
+      const key = getUserCocktailKey(cocktailId);
+      storage.delete(key);
+    } catch (error) {
+      console.error('Failed to delete user cocktail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all user cocktail IDs (for debugging)
+   */
+  static getAllUserCocktailIds(): string[] {
+    try {
+      const allKeys = storage.getAllKeys();
+      const cocktailKeys = allKeys.filter(key => key.includes(STORAGE_KEYS.USER_COCKTAILS));
+      return cocktailKeys.map(key => {
+        const parts = key.split(':');
+        return parts[2]; // Extract cocktail ID from key structure
+      });
+    } catch (error) {
+      console.error('Failed to get all user cocktail IDs:', error);
       return [];
     }
   }

@@ -61,6 +61,7 @@ class CocktailDB {
   private storage: MMKV;
   private cocktails: Map<string, Cocktail> = new Map();
   private isInitialized = false;
+  private cachedIngredientsByCount: { ingredient: string; cocktailCount: number }[] = [];
 
   constructor() {
     this.storage = new MMKV({
@@ -110,6 +111,7 @@ class CocktailDB {
     Object.values(data.cocktails).forEach((cocktail) => {
       this.cocktails.set(cocktail.id, cocktail);
     });
+    this.cacheIngredientsByCocktailCount();
   }
 
   getAllCocktails(): Cocktail[] {
@@ -166,6 +168,7 @@ class CocktailDB {
     };
 
     this.cocktails.set(newCocktail.id, newCocktail);
+    this.cacheIngredientsByCocktailCount(); // Recalculate cache
     this.saveToStorage();
 
     return newCocktail;
@@ -183,6 +186,7 @@ class CocktailDB {
     };
 
     this.cocktails.set(id, updated);
+    this.cacheIngredientsByCocktailCount(); // Recalculate cache
     this.saveToStorage();
 
     return updated;
@@ -191,6 +195,7 @@ class CocktailDB {
   deleteCocktail(id: string): boolean {
     const deleted = this.cocktails.delete(id);
     if (deleted) {
+      this.cacheIngredientsByCocktailCount(); // Recalculate cache
       this.saveToStorage();
     }
     return deleted;
@@ -234,14 +239,43 @@ class CocktailDB {
     return result;
   }
 
+  getIngredientsSortedByCocktailCount(): { ingredient: string; cocktailCount: number }[] {
+    return this.cachedIngredientsByCount;
+  }
+
+  private cacheIngredientsByCocktailCount(): void {
+    const ingredientCounts = new Map<string, number>();
+    
+    // Count how many cocktails each ingredient appears in
+    this.getAllCocktails().forEach((cocktail) => {
+      cocktail.ingredients.forEach((ing) => {
+        const ingredientName = ing.name;
+        ingredientCounts.set(ingredientName, (ingredientCounts.get(ingredientName) || 0) + 1);
+      });
+    });
+
+    // Convert to sorted array
+    this.cachedIngredientsByCount = Array.from(ingredientCounts.entries())
+      .map(([ingredient, cocktailCount]) => ({ ingredient, cocktailCount }))
+      .sort((a, b) => {
+        // Sort by cocktail count (descending) then alphabetically
+        if (a.cocktailCount !== b.cocktailCount) {
+          return b.cocktailCount - a.cocktailCount;
+        }
+        return a.ingredient.localeCompare(b.ingredient);
+      });
+  }
+
   clearDatabase(): void {
     this.cocktails.clear();
+    this.cachedIngredientsByCount = [];
     this.storage.clearAll();
     this.isInitialized = false;
   }
 
   async forceRefreshFromJSON(): Promise<void> {
     this.cocktails.clear();
+    this.cachedIngredientsByCount = [];
     this.storage.clearAll();
     this.isInitialized = false;
     await this.initialize();

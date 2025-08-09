@@ -4,18 +4,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
-import { Button } from '~/components/nativewindui/Button';
+// import { Button } from '~/components/nativewindui/Button'; // Unused
 import { Container } from '~/components/Container';
-import { useVenues, useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { useVenues, useFavorites, useUserSettings, useUserCocktails } from '~/lib/contexts/UserContext';
 import { Venue } from '~/lib/types/user';
+import { AddCocktailModal } from '~/components/AddCocktailModal';
 
 export default function SpeakeasyScreen() {
   const router = useRouter();
   const { venues, createVenue, deleteVenue } = useVenues();
   const { favorites } = useFavorites();
   const { settings } = useUserSettings();
+  const { getAllUserCocktails } = useUserCocktails();
   const [showNewVenueModal, setShowNewVenueModal] = useState(false);
   const [newVenueName, setNewVenueName] = useState('');
+  const [showAddCocktailModal, setShowAddCocktailModal] = useState(false);
 
   // Debug log to check venues
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function SpeakeasyScreen() {
       await createVenue(newVenueName.trim());
       setNewVenueName('');
       setShowNewVenueModal(false);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to create venue');
     }
   };
@@ -55,7 +58,7 @@ export default function SpeakeasyScreen() {
           onPress: async () => {
             try {
               await deleteVenue(venue.id);
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to delete venue');
             }
           },
@@ -71,12 +74,120 @@ export default function SpeakeasyScreen() {
     });
   };
 
+  const handleAddCocktailSuccess = () => {
+    setShowAddCocktailModal(false);
+    
+    // Find My Speakeasy and navigate to it
+    const defaultVenue = venues.find(v => v.isDefault);
+    if (defaultVenue) {
+      router.push({
+        pathname: '/venue-cocktails/[id]',
+        params: { id: defaultVenue.id },
+      });
+    }
+  };
+
   const handleEditVenue = (venue: Venue) => {
     router.push({
       pathname: '/venue/[id]',
       params: { id: venue.id },
     });
   };
+
+  // Check if user is on free plan and show paywall
+  if (settings?.subscriptionStatus === 'free') {
+    return (
+      <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+        <View style={{ paddingHorizontal: 12, flex: 1 }}>
+          <Container>
+            {/* Header */}
+            <View className="pb-4">
+              <Text className="mb-2 text-2xl font-bold text-foreground">Speakeasy</Text>
+              <Text className="text-sm text-muted-foreground">
+                Premium feature - Create and manage your venues
+              </Text>
+            </View>
+
+            {/* Premium Feature Explanation */}
+            <View style={{
+              backgroundColor: '#1a1a1a',
+              borderRadius: 16,
+              padding: 24,
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: '#333333',
+              alignItems: 'center',
+            }}>
+              <FontAwesome name="building" size={48} color="#10B981" style={{ marginBottom: 16 }} />
+              <Text style={{ 
+                color: '#ffffff', 
+                fontSize: 20, 
+                fontWeight: 'bold', 
+                marginBottom: 12,
+                textAlign: 'center'
+              }}>
+                Speakeasy Premium
+              </Text>
+              <Text style={{ 
+                color: '#888888', 
+                fontSize: 14, 
+                textAlign: 'center',
+                lineHeight: 20,
+                marginBottom: 20
+              }}>
+                Create custom venues, manage your ingredients, and organize cocktail collections for different bars or events.
+              </Text>
+              
+              <Pressable
+                onPress={() => router.push('/paywall')}
+                style={{
+                  backgroundColor: '#10B981',
+                  borderRadius: 12,
+                  paddingHorizontal: 32,
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                }}>
+                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                  Upgrade to Premium
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Feature List */}
+            <View style={{ marginTop: 20 }}>
+              <Text style={{ 
+                color: '#ffffff', 
+                fontSize: 16, 
+                fontWeight: '600', 
+                marginBottom: 16 
+              }}>
+                What you'll get:
+              </Text>
+              
+              {[
+                'Create unlimited custom venues',
+                'Manage ingredients by location',
+                'Organize cocktails by bar/event',
+                'Track missing ingredients',
+                'Get cocktail suggestions by venue'
+              ].map((feature, index) => (
+                <View key={index} style={{ 
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  marginBottom: 12 
+                }}>
+                  <FontAwesome name="check" size={16} color="#10B981" style={{ marginRight: 12 }} />
+                  <Text style={{ color: '#cccccc', fontSize: 14 }}>
+                    {feature}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Container>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
@@ -92,16 +203,27 @@ export default function SpeakeasyScreen() {
 
         {/* Add New Venue Button */}
         <Pressable
-          onPress={() => {
-            // Check if user is on free plan and trigger paywall
-            if (settings?.subscriptionStatus === 'free') {
-              router.push('/paywall');
-              return;
-            }
-            setShowNewVenueModal(true);
-          }}
+          onPress={() => setShowNewVenueModal(true)}
           style={{
             backgroundColor: '#10B981',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <FontAwesome name="plus" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={{ color: '#ffffff', fontSize: 16 }}>
+            Add New Venue
+          </Text>
+        </Pressable>
+
+        {/* Add New Drink Button */}
+        <Pressable
+          onPress={() => setShowAddCocktailModal(true)}
+          style={{
+            backgroundColor: '#007AFF',
             borderRadius: 12,
             padding: 16,
             marginBottom: 20,
@@ -109,9 +231,9 @@ export default function SpeakeasyScreen() {
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-          <FontAwesome name="plus" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
-            Add New Venue
+          <FontAwesome name="glass" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={{ color: '#ffffff', fontSize: 16 }}>
+            Add New Drink
           </Text>
         </Pressable>
 
@@ -120,7 +242,14 @@ export default function SpeakeasyScreen() {
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}>
           {venues.map((venue) => {
-            const cocktailCount = venue.isDefault ? favorites.length : venue.cocktailIds.length;
+            // Calculate cocktail count including user cocktails
+            const regularCocktailCount = venue.isDefault ? favorites.length : venue.cocktailIds.length;
+            
+            // Calculate user cocktails using the proper method
+            const allUserCocktails = getAllUserCocktails();
+            const userCocktailCount = allUserCocktails.filter(c => c.venues.includes(venue.id)).length;
+            
+            const cocktailCount = regularCocktailCount + userCocktailCount;
             const ingredientCount = venue.ingredients.length;
 
             return (
@@ -140,7 +269,7 @@ export default function SpeakeasyScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <Text style={{ 
                         fontSize: 18, 
-                        fontWeight: '600', 
+ 
                         color: '#ffffff',
                         marginRight: 8,
                       }}>
@@ -153,7 +282,7 @@ export default function SpeakeasyScreen() {
                           paddingVertical: 2,
                           borderRadius: 4,
                         }}>
-                          <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '600' }}>
+                          <Text style={{ color: '#ffffff', fontSize: 10 }}>
                             DEFAULT
                           </Text>
                         </View>
@@ -211,7 +340,7 @@ export default function SpeakeasyScreen() {
             right: 0,
             bottom: 0,
             backgroundColor: 'rgba(0,0,0,0.8)',
-            justifyContent: 'center',
+            paddingTop: 120,
             padding: 20,
           }}>
             <View style={{
@@ -221,7 +350,6 @@ export default function SpeakeasyScreen() {
             }}>
               <Text style={{
                 fontSize: 20,
-                fontWeight: 'bold',
                 color: '#ffffff',
                 marginBottom: 16,
               }}>
@@ -259,7 +387,7 @@ export default function SpeakeasyScreen() {
                     padding: 12,
                     alignItems: 'center',
                   }}>
-                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 16 }}>
                     Cancel
                   </Text>
                 </Pressable>
@@ -273,7 +401,7 @@ export default function SpeakeasyScreen() {
                     padding: 12,
                     alignItems: 'center',
                   }}>
-                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#ffffff', fontSize: 16 }}>
                     Create
                   </Text>
                 </Pressable>
@@ -281,6 +409,14 @@ export default function SpeakeasyScreen() {
             </View>
           </View>
         )}
+
+        {/* Add Cocktail Modal */}
+        <AddCocktailModal
+          visible={showAddCocktailModal}
+          onClose={() => setShowAddCocktailModal(false)}
+          onSuccess={handleAddCocktailSuccess}
+          editCocktail={null}
+        />
     </SafeAreaView>
   );
 }

@@ -50,3 +50,13 @@ This is a React Native Expo app with:
 - User venues (Speakeasy tab)
 - Subscription tiers (Free/Premium)
 - Favorites system synced with "My Speakeasy" venue
+
+## CRITICAL EDITING RULE - NEVER FUCKING IGNORE THIS
+
+**YOU DO NOT EDIT FILES WITHOUT READING THEM IN FULL FIRST**
+
+- ALWAYS use Read tool to read the ENTIRE file before making any edits
+- DO NOT use Grep or search to find strings without reading the full file first
+- READ THE WHOLE FILE to understand context before making changes
+- This prevents missing instances and breaking code
+- NO EXCEPTIONS TO THIS RULE

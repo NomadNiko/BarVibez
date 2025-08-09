@@ -1,19 +1,26 @@
-import React, { useMemo, useRef } from 'react';
-import { View, FlatList, Pressable, Dimensions, Platform } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { View, FlatList, Pressable, Dimensions, Platform, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { BackButton } from '~/components/BackButton';
-import { useVenues, useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { AddCocktailModal } from '~/components/AddCocktailModal';
+import { useVenues, useFavorites, useUserSettings, useUserCocktails } from '~/lib/contexts/UserContext';
 import { useCocktails } from '~/lib/hooks/useCocktails';
-import { Cocktail } from '~/lib/types/cocktail';
+import { Cocktail, UserCocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
+import { getVenueAllCocktails } from '~/lib/utils/combinedSearch';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Combined cocktail type for display
+type DisplayCocktail = (Cocktail | UserCocktail) & {
+  isUserCreated?: boolean;
+};
 
 export default function VenueCocktailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,22 +29,18 @@ export default function VenueCocktailsScreen() {
   const { favorites, addFavorite, removeFavorite, isFavorite } = useFavorites();
   const { settings } = useUserSettings();
   const { cocktails } = useCocktails();
+  const { getAllUserCocktails, deleteUserCocktail } = useUserCocktails();
   const flatListRef = useRef<FlatList>(null);
+  const [editingCocktail, setEditingCocktail] = useState<UserCocktail | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const venue = venues.find(v => v.id === id);
 
-  // Get cocktails for this venue
+  // Get cocktails for this venue using the proper utility function
   const venueCocktails = useMemo(() => {
     if (!venue) return [];
-    
-    // For My Speakeasy, show favorites
-    const cocktailIds = venue.isDefault ? favorites : venue.cocktailIds;
-    
-    return cocktailIds
-      .map(id => cocktails.find(c => c.id === id))
-      .filter((c): c is Cocktail => c !== undefined)
-      .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
-  }, [venue, cocktails, favorites]);
+    return getVenueAllCocktails(venue.id);
+  }, [venue]);
 
   if (!venue) {
     return (
@@ -70,38 +73,115 @@ export default function VenueCocktailsScreen() {
     }
   };
 
-  const renderCocktailItem = ({ item }: { item: Cocktail }) => (
+  const handleEditCocktail = (cocktail: UserCocktail, event: any) => {
+    event.stopPropagation();
+    setEditingCocktail(cocktail);
+    setShowEditModal(true);
+  };
+
+  const handleDeleteCocktail = (cocktail: UserCocktail, event: any) => {
+    event.stopPropagation();
+    
+    Alert.alert(
+      'Delete Cocktail',
+      `Are you sure you want to delete "${cocktail.name}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteUserCocktail(cocktail.id);
+            } catch {
+              Alert.alert('Error', 'Failed to delete cocktail');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditModal(false);
+    setEditingCocktail(null);
+  };
+
+  const renderCocktailItem = ({ item }: { item: DisplayCocktail }) => (
     <View style={{ width: screenWidth * 0.8, marginRight: 16, flex: 1 }}>
       <View className="flex-1 rounded-xl border border-border bg-card p-4 shadow-sm" style={{ position: 'relative' }}>
-        {/* Favorite Button */}
-        <Pressable
-          onPress={(event) => handleFavoriteToggle(item.id, event)}
-          style={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            zIndex: 10,
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            borderRadius: 20,
-            width: 36,
-            height: 36,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
-          <FontAwesome 
-            name={isFavorite(item.id) ? 'heart' : 'heart-o'} 
-            size={16} 
-            color={isFavorite(item.id) ? '#FF6B6B' : '#ffffff'} 
-          />
-        </Pressable>
+        {/* Action Buttons */}
+        {item.isUserCreated ? (
+          <>
+            {/* Delete button - Top Left */}
+            <Pressable
+              onPress={(event) => handleDeleteCocktail(item as UserCocktail, event)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                left: 8,
+                zIndex: 10,
+                backgroundColor: 'rgba(255, 59, 48, 0.9)',
+                borderRadius: 16,
+                width: 28,
+                height: 28,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <FontAwesome name="trash-o" size={12} color="#ffffff" />
+            </Pressable>
+            
+            {/* Edit button - Top Right */}
+            <Pressable
+              onPress={(event) => handleEditCocktail(item as UserCocktail, event)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                zIndex: 10,
+                backgroundColor: 'rgba(0, 122, 255, 0.9)',
+                borderRadius: 16,
+                width: 28,
+                height: 28,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <FontAwesome name="edit" size={12} color="#ffffff" />
+            </Pressable>
+          </>
+        ) : (
+          /* Favorite Button - Top Right for regular cocktails */
+          <Pressable
+            onPress={(event) => handleFavoriteToggle(item.id, event)}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 10,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              borderRadius: 16,
+              width: 28,
+              height: 28,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+            <FontAwesome 
+              name={isFavorite(item.id) ? 'heart' : 'heart-o'} 
+              size={12} 
+              color={isFavorite(item.id) ? '#FF6B6B' : '#ffffff'} 
+            />
+          </Pressable>
+        )}
 
         {/* Cocktail Name */}
-        <Text className="mb-3 text-xl font-bold text-foreground text-center">{item.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+          <Text className="text-xl font-bold text-foreground text-center">{item.name}</Text>
+        </View>
         
         {/* Images Side by Side */}
         <View className="mb-4 flex-row items-center justify-center">
-          {/* Main Image */}
-          {item.image && getCocktailImage(item.image) && (
+          {/* Main Image - only for regular cocktails */}
+          {!item.isUserCreated && item.image && getCocktailImage(item.image) && (
             <Image
               source={getCocktailImage(item.image)}
               style={{ width: 120, height: 120, borderRadius: 12, marginRight: 16 }}
@@ -113,7 +193,12 @@ export default function VenueCocktailsScreen() {
           {/* Glassware */}
           <Image
             source={getGlassImageNormalized(item.glass)}
-            style={{ width: 120, height: 120, borderRadius: 12 }}
+            style={{ 
+              width: 120, 
+              height: 120, 
+              borderRadius: 12,
+              marginLeft: item.isUserCreated ? 0 : 0 // Center if no cocktail image
+            }}
             contentFit="contain"
             cachePolicy="memory-disk"
           />
@@ -134,7 +219,7 @@ export default function VenueCocktailsScreen() {
         {/* Instructions */}
         <View className="mb-4">
           <Text className="text-sm text-foreground leading-5">
-            {item.instructions.en}
+            {item.isUserCreated ? (item as UserCocktail).instructions : (item as Cocktail).instructions.en}
           </Text>
         </View>
       </View>
@@ -155,11 +240,14 @@ export default function VenueCocktailsScreen() {
         }}>
           <BackButton />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
+            <Text style={{ fontSize: 20, color: '#ffffff' }}>
               {venue.name}
             </Text>
             <Text style={{ fontSize: 12, color: '#888888', marginTop: 2 }}>
               {venueCocktails.length} {venueCocktails.length === 1 ? 'cocktail' : 'cocktails'}
+              {venueCocktails.filter(c => c.isUserCreated).length > 0 && (
+                <Text style={{ color: '#007AFF' }}> • {venueCocktails.filter(c => c.isUserCreated).length} custom</Text>
+              )}
             </Text>
           </View>
           
@@ -177,7 +265,7 @@ export default function VenueCocktailsScreen() {
               borderColor: '#333333',
             }}>
             <FontAwesome name="edit" size={14} color="#007AFF" style={{ marginRight: 6 }} />
-            <Text style={{ color: '#007AFF', fontSize: 14, fontWeight: '600' }}>
+            <Text style={{ color: '#007AFF', fontSize: 14 }}>
               Edit
             </Text>
           </Pressable>
@@ -217,6 +305,17 @@ export default function VenueCocktailsScreen() {
             </View>
           )}
         </View>
+        
+        {/* Edit Cocktail Modal */}
+        <AddCocktailModal
+          visible={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingCocktail(null);
+          }}
+          onSuccess={handleEditSuccess}
+          editCocktail={editingCocktail}
+        />
       </View>
     </SafeAreaView>
   );

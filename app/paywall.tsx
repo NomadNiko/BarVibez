@@ -16,8 +16,8 @@ interface SubscriptionOption {
 }
 
 const subscriptionOptions: SubscriptionOption[] = [
-  { id: 'monthly', title: 'Monthly Premium', price: '$4.99', period: '/month' },
-  { id: 'yearly', title: 'Yearly Premium', price: '$24.99', period: '/year' },
+  { id: 'monthly', title: 'Monthly Premium', price: '$4.99', period: 'monthly' },
+  { id: 'yearly', title: 'Yearly Premium', price: '$24.99', period: 'yearly' },
   { id: 'forever', title: 'Forever Premium', price: '$34.99', period: 'one-time', highlight: true },
 ];
 
@@ -29,11 +29,16 @@ export default function PayWallScreen() {
   const handleSubscriptionSelect = async (optionId: string) => {
     if (optionId === 'free') {
       await updateSettings({ subscriptionStatus: 'free' });
-      // Navigate to main app for free users
-      router.replace('/popular');
+      // Navigate back or to popular if coming from disclaimer
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        // If can't go back (e.g., coming from disclaimer), go to popular
+        router.replace('/popular');
+      }
     } else {
       // Navigate to purchase screen for paid subscriptions
-      const selectedOption = subscriptionOptions.find(option => option.id === optionId);
+      const selectedOption = subscriptionOptions.find((option) => option.id === optionId);
       if (selectedOption) {
         router.push({
           pathname: '/purchase',
@@ -42,7 +47,7 @@ export default function PayWallScreen() {
             title: selectedOption.title,
             price: selectedOption.price,
             period: selectedOption.period || '',
-          }
+          },
         });
       }
     }
@@ -51,54 +56,62 @@ export default function PayWallScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000000' }}>
       <StatusBar barStyle="light-content" />
-      <View style={{ 
-        flex: 1, 
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        paddingHorizontal: 24,
-      }}>
+      <View
+        style={{
+          flex: 1,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          paddingHorizontal: 24,
+        }}>
         {/* Content */}
-        <ScrollView 
-          className="flex-1" 
+        <ScrollView
+          className="flex-1"
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
           showsVerticalScrollIndicator={false}>
-          
           {/* Header */}
           <View className="mb-4">
-            <Text className="text-3xl font-bold text-white text-center mb-2">
-              Bar Vibez Premium
+            <Text className="mb-2 text-center text-3xl font-bold text-white">
+              {'Bar Vibez Premium'}
             </Text>
-            <Text className="text-base text-gray-400 text-center">
-              Unlock all cocktail recipes
+            <Text className="text-center text-base text-gray-400">
+              {'Unlock All Recipes & Features'}
             </Text>
           </View>
 
           {/* App Icon */}
-          <View className="items-center mb-6">
+          <View className="mb-6 items-center">
             <Image
-              source={require('../assets/icon.png')}
-              style={{ width: 80, height: 80 }}
+              source={require('../assets/premiumIcon.png')}
+              style={{ width: 160, height: 160 }}
               contentFit="contain"
             />
           </View>
 
           {/* Features */}
           <View className="mb-6">
-            <View className="flex-row items-center mb-2">
+            <View className="mb-2 flex-row items-center">
               <FontAwesome name="check-circle" size={18} color="#4CAF50" />
-              <Text className="ml-3 text-white text-sm">Access to 2300+ cocktail recipes</Text>
+              <Text className="ml-3 text-sm text-white">
+                {'Access to over 2000 unique drink recipes'}
+              </Text>
             </View>
-            <View className="flex-row items-center mb-2">
+            <View className="mb-2 flex-row items-center">
               <FontAwesome name="check-circle" size={18} color="#4CAF50" />
-              <Text className="ml-3 text-white text-sm">Add custom recipes</Text>
+              <Text className="ml-3 text-sm text-white">
+                {'Add your custom recipes (no more sticky spec sheets!)'}
+              </Text>
             </View>
-            <View className="flex-row items-center mb-2">
+            <View className="mb-2 flex-row items-center">
               <FontAwesome name="check-circle" size={18} color="#4CAF50" />
-              <Text className="ml-3 text-white text-sm">Manage recipes by venue in Speakeasy tab</Text>
+              <Text className="ml-3 text-sm text-white">
+                {"Create venues to track your bar's ingredients & drinks"}
+              </Text>
             </View>
             <View className="flex-row items-center">
               <FontAwesome name="check-circle" size={18} color="#4CAF50" />
-              <Text className="ml-3 text-white text-sm">All future updates included</Text>
+              <Text className="ml-3 text-sm text-white">
+                {'Get cocktail suggestions based on your inventory'}
+              </Text>
             </View>
           </View>
 
@@ -110,14 +123,14 @@ export default function PayWallScreen() {
                 onPress={() => handleSubscriptionSelect(option.id)}
                 className="mb-3"
                 style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
-                <View 
-                  className={`p-4 rounded-2xl border-2 ${
-                    option.highlight 
-                      ? 'border-primary bg-primary/10' 
+                <View
+                  className={`rounded-2xl border-2 p-4 ${
+                    option.highlight
+                      ? 'bg-primary/10 border-primary'
                       : 'border-gray-700 bg-gray-900/50'
                   }`}>
                   {option.highlight && (
-                    <View className="absolute -top-3 self-center px-3 py-1 bg-primary rounded-full">
+                    <View className="absolute -top-3 self-center rounded-full bg-primary px-3 py-1">
                       <Text className="text-xs font-semibold text-white">BEST VALUE</Text>
                     </View>
                   )}
@@ -125,8 +138,10 @@ export default function PayWallScreen() {
                     <View className="flex-1">
                       <Text className="text-lg font-semibold text-white">{option.title}</Text>
                       {option.period && (
-                        <Text className="text-sm text-gray-400 mt-1">
-                          {option.period === 'one-time' ? 'One-time purchase' : `Billed ${option.period}`}
+                        <Text className="mt-1 text-sm text-gray-400">
+                          {option.period === 'one-time'
+                            ? 'One-time purchase'
+                            : `Billed ${option.period}`}
                         </Text>
                       )}
                     </View>
@@ -143,7 +158,7 @@ export default function PayWallScreen() {
           <Pressable
             onPress={() => handleSubscriptionSelect('free')}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
-            <Text className="text-center text-xs text-gray-500 py-2">
+            <Text className="py-2 text-center text-xs text-gray-500">
               Continue with Free (Limited Access)
             </Text>
           </Pressable>

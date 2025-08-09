@@ -16,7 +16,7 @@ export default function UserScreen() {
 
   const handleMeasurementToggle = async () => {
     if (!settings) return;
-    
+
     try {
       const newMeasurement = settings.measurements === 'oz' ? 'ml' : 'oz';
       await updateSettings({ measurements: newMeasurement });
@@ -33,7 +33,6 @@ export default function UserScreen() {
     Linking.openURL(APP_CONFIG.supportUrl);
   };
 
-
   const handleSettingsPress = () => {
     router.push('/modal');
   };
@@ -41,11 +40,10 @@ export default function UserScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }} edges={['top', 'left', 'right']}>
       <Container>
-        <ScrollView 
-          style={{ flex: 1 }} 
+        <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={{ flexGrow: 1, paddingVertical: 20 }}
           showsVerticalScrollIndicator={false}>
-          
           {/* Header */}
           <View style={{ alignItems: 'center', marginBottom: 40 }}>
             <Image
@@ -53,51 +51,53 @@ export default function UserScreen() {
               style={{ width: 80, height: 80, marginBottom: 16 }}
               contentFit="contain"
             />
-            <Text style={{ 
-              color: '#ffffff', 
-              fontSize: 24, 
-              fontWeight: 'bold', 
-              textAlign: 'center' 
-            }}>
+            <Text
+              style={{
+                color: '#ffffff',
+                fontSize: 24,
+                textAlign: 'center',
+              }}>
               {APP_CONFIG.name}
             </Text>
-            <Text style={{ 
-              color: '#888888', 
-              fontSize: 16, 
-              textAlign: 'center',
-              marginTop: 4
-            }}>
-              Your Personal Cocktail Companion
+            <Text
+              style={{
+                color: '#888888',
+                fontSize: 16,
+                textAlign: 'center',
+                marginTop: 4,
+              }}>
+              Mixology Made Simple
             </Text>
           </View>
 
           {/* User Stats Card */}
-          <View style={{ 
-            backgroundColor: '#1a1a1a', 
-            borderRadius: 16, 
-            padding: 20, 
-            marginBottom: 20,
-            borderWidth: 1,
-            borderColor: '#333333'
-          }}>
-            <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600', marginBottom: 16 }}>
+          <View
+            style={{
+              backgroundColor: '#1a1a1a',
+              borderRadius: 16,
+              padding: 20,
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: '#333333',
+            }}>
+            <Text style={{ color: '#ffffff', fontSize: 18, marginBottom: 16 }}>
               Account Overview
             </Text>
-            
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text style={{ color: '#888888', fontSize: 14 }}>Status:</Text>
-              <Text style={{ color: isPro ? '#00FF88' : '#888888', fontSize: 14, fontWeight: '600' }}>
+              <Text style={{ color: isPro ? '#00FF88' : '#888888', fontSize: 14 }}>
                 {isPro ? 'Pro User' : 'Free User'}
               </Text>
             </View>
-            
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text style={{ color: '#888888', fontSize: 14 }}>Favorites:</Text>
-              <Text style={{ color: '#ffffff', fontSize: 14 }}>
-                {favorites.length} cocktails
-              </Text>
+              <Text style={{ color: '#ffffff', fontSize: 14 }}>{favorites.length} cocktails</Text>
             </View>
-            
+
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ color: '#888888', fontSize: 14 }}>Measurement System:</Text>
               <Text style={{ color: '#ffffff', fontSize: 14, textTransform: 'uppercase' }}>
@@ -124,9 +124,7 @@ export default function UserScreen() {
               }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <FontAwesome name="cog" size={20} color="#ffffff" style={{ marginRight: 12 }} />
-                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '500' }}>
-                  Settings
-                </Text>
+                <Text style={{ color: '#ffffff', fontSize: 16 }}>Settings</Text>
               </View>
               <FontAwesome name="chevron-right" size={16} color="#666666" />
             </Pressable>
@@ -146,42 +144,47 @@ export default function UserScreen() {
                 justifyContent: 'space-between',
               }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <FontAwesome name="life-ring" size={20} color="#007AFF" style={{ marginRight: 12 }} />
-                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '500' }}>
-                  Support & Help
-                </Text>
+                <FontAwesome
+                  name="life-ring"
+                  size={20}
+                  color="#007AFF"
+                  style={{ marginRight: 12 }}
+                />
+                <Text style={{ color: '#ffffff', fontSize: 16 }}>Support & Help</Text>
               </View>
               <FontAwesome name="external-link" size={16} color="#666666" />
             </Pressable>
-
           </View>
 
           {/* Privacy Footer */}
           <View style={{ alignItems: 'center', paddingVertical: 20 }}>
             <Pressable onPress={handlePrivacyPress}>
-              <Text style={{ 
-                color: '#007AFF', 
-                fontSize: 14, 
-                textDecorationLine: 'underline',
-                lineHeight: 16
-              }}>
+              <Text
+                style={{
+                  color: '#007AFF',
+                  fontSize: 14,
+                  textDecorationLine: 'underline',
+                  lineHeight: 16,
+                }}>
                 Privacy Policy
               </Text>
             </Pressable>
-            <Text style={{ 
-              color: '#666666', 
-              fontSize: 12, 
-              textAlign: 'center',
-              lineHeight: 14
-            }}>
+            <Text
+              style={{
+                color: '#666666',
+                fontSize: 12,
+                textAlign: 'center',
+                lineHeight: 14,
+              }}>
               {APP_CONFIG.copyright}
             </Text>
-            <Text style={{ 
-              color: '#666666', 
-              fontSize: 12, 
-              textAlign: 'center',
-              lineHeight: 14
-            }}>
+            <Text
+              style={{
+                color: '#666666',
+                fontSize: 12,
+                textAlign: 'center',
+                lineHeight: 14,
+              }}>
               Version {APP_CONFIG.version}
             </Text>
           </View>

@@ -78,6 +78,7 @@ export default function RootLayout() {
   const isDarkColorScheme = true;
   const [isDbInitialized, setIsDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  
 
   useEffect(() => {
     const initializeDatabase = async () => {

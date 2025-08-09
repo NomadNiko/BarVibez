@@ -101,6 +101,10 @@ export function useCocktails() {
     return cocktailDB.getIngredients();
   }, []);
 
+  const getIngredientsSortedByCocktailCount = useCallback(() => {
+    return cocktailDB.getIngredientsSortedByCocktailCount();
+  }, []);
+
   const getStats = useCallback(() => {
     return cocktailDB.getStats();
   }, []);
@@ -132,6 +136,7 @@ export function useCocktails() {
     getCategories,
     getGlassTypes,
     getIngredients,
+    getIngredientsSortedByCocktailCount,
     getStats,
     forceRefresh,
   };

@@ -54,7 +54,7 @@ export default function Modal() {
     <>
       <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }} edges={['top', 'left', 'right']}>
         <View style={{ flex: 1, padding: 20 }}>
-          <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 30 }}>
+          <Text style={{ color: '#ffffff', fontSize: 24, textAlign: 'center', marginBottom: 30 }}>
             Settings
           </Text>
 
@@ -69,7 +69,7 @@ export default function Modal() {
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600', marginBottom: 4 }}>
+                <Text style={{ color: '#ffffff', fontSize: 18, marginBottom: 4 }}>
                   Measurements
                 </Text>
                 <Text style={{ color: '#888888', fontSize: 14 }}>
@@ -80,7 +80,7 @@ export default function Modal() {
                 <Text style={{ 
                   color: settings?.measurements === 'oz' ? '#ffffff' : '#666666', 
                   fontSize: 16, 
-                  marginRight: 10 
+                  marginRight: 10,
                 }}>
                   oz
                 </Text>
@@ -93,7 +93,7 @@ export default function Modal() {
                 <Text style={{ 
                   color: settings?.measurements === 'ml' ? '#ffffff' : '#666666', 
                   fontSize: 16, 
-                  marginLeft: 10 
+                  marginLeft: 10,
                 }}>
                   ml
                 </Text>
@@ -110,7 +110,7 @@ export default function Modal() {
             borderWidth: 1,
             borderColor: '#333333'
           }}>
-            <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600', marginBottom: 15 }}>
+            <Text style={{ color: '#ffffff', fontSize: 18, marginBottom: 15 }}>
               Test Controls
             </Text>
             
@@ -131,7 +131,7 @@ export default function Modal() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <FontAwesome name="dollar" size={20} color="#10B981" style={{ marginRight: 12 }} />
                 <View>
-                  <Text style={{ color: '#10B981', fontSize: 16, fontWeight: '500' }}>
+                  <Text style={{ color: '#10B981', fontSize: 16 }}>
                     Test PayWall
                   </Text>
                   <Text style={{ color: '#999999', fontSize: 12, marginTop: 2 }}>
@@ -154,7 +154,7 @@ export default function Modal() {
               }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                 <FontAwesome name="flask" size={20} color="#F59E0B" style={{ marginRight: 12 }} />
-                <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: '500' }}>
+                <Text style={{ color: '#F59E0B', fontSize: 16 }}>
                   Test Subscription
                 </Text>
               </View>
@@ -172,8 +172,7 @@ export default function Modal() {
                   <Text style={{ 
                     color: settings?.subscriptionStatus === 'free' ? '#ffffff' : '#9CA3AF', 
                     fontSize: 14,
-                    fontWeight: '500'
-                  }}>
+                    }}>
                     Free
                   </Text>
                 </Pressable>
@@ -190,8 +189,7 @@ export default function Modal() {
                   <Text style={{ 
                     color: settings?.subscriptionStatus === 'premium' ? '#ffffff' : '#9CA3AF', 
                     fontSize: 14,
-                    fontWeight: '500'
-                  }}>
+                    }}>
                     Premium
                   </Text>
                 </Pressable>
@@ -214,7 +212,7 @@ export default function Modal() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <FontAwesome name="warning" size={20} color="#FF6B6B" style={{ marginRight: 12 }} />
                 <View>
-                  <Text style={{ color: '#FF6B6B', fontSize: 16, fontWeight: '500' }}>
+                  <Text style={{ color: '#FF6B6B', fontSize: 16 }}>
                     Clear Disclaimer
                   </Text>
                   <Text style={{ color: '#999999', fontSize: 12, marginTop: 2 }}>

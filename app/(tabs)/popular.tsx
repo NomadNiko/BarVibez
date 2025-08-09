@@ -7,10 +7,10 @@ import { Text } from '~/components/nativewindui/Text';
 import { Container } from '~/components/Container';
 import { CocktailCard } from '~/components/CocktailCard';
 import { useCocktails } from '~/lib/hooks/useCocktails';
-import { Cocktail } from '~/lib/types/cocktail';
+import { Cocktail, UserCocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
-import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { useFavorites, useUserSettings, useUserCocktails } from '~/lib/contexts/UserContext';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -42,6 +42,7 @@ export default function PopularScreen() {
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const { favorites, addFavorite, removeFavorite, isFavorite } = useFavorites();
   const { settings } = useUserSettings();
+  const { getAllUserCocktails } = useUserCocktails();
   const flatListRef = useRef<FlatList>(null);
 
   const selectedCategory = CATEGORIES[selectedCategoryIndex];
@@ -50,15 +51,25 @@ export default function PopularScreen() {
     const category = selectedCategory;
     if (!category) return [];
 
-    // Special case for Mine - show favorites
+    // Special case for Mine - show favorites and user cocktails
     if (category.id === 'mine') {
+      const allResults = [];
+      
+      // Add favorite cocktails from regular database
       const filteredFavorites = cocktails.filter(cocktail => {
-        // Only require favorites - don't filter by image requirement for Mine category
         return favorites.includes(cocktail.id);
       });
+      allResults.push(...filteredFavorites);
       
-      // Sort favorites: cocktails with images first (alphabetical), then without images (alphabetical)
-      const sortedFavorites = filteredFavorites.sort((a, b) => {
+      // Add all user-created cocktails with proper marking
+      const userCocktails = getAllUserCocktails()
+        .map(c => ({ ...c, isUserCreated: true }));
+      console.log('Popular tab - User cocktails:', userCocktails.length);
+      console.log('Popular tab - Favorites:', filteredFavorites.length);
+      allResults.push(...userCocktails);
+      
+      // Sort combined results: cocktails with images first (alphabetical), then without images (alphabetical)
+      const sortedResults = allResults.sort((a, b) => {
         // First, group by image availability
         if (a.image && !b.image) return -1;
         if (!a.image && b.image) return 1;
@@ -67,7 +78,8 @@ export default function PopularScreen() {
         return a.name.localeCompare(b.name);
       });
       
-      return sortedFavorites;
+      console.log('Popular tab - Total results:', sortedResults.length);
+      return sortedResults;
     }
 
     // Filter cocktails by tags and ingredients
@@ -293,7 +305,7 @@ export default function PopularScreen() {
 
     // Sort results alphabetically by name
     return results.sort((a, b) => a.name.localeCompare(b.name));
-  }, [selectedCategory, cocktails, favorites]);
+  }, [selectedCategory, cocktails, favorites, getAllUserCocktails]);
 
   const goToPreviousCategory = () => {
     setSelectedCategoryIndex((prev) => (prev - 1 + CATEGORIES.length) % CATEGORIES.length);
@@ -332,7 +344,7 @@ export default function PopularScreen() {
     }
   };
 
-  const renderCocktailItem = ({ item, index }: { item: Cocktail; index: number }) => (
+  const renderCocktailItem = ({ item, index }: { item: Cocktail | UserCocktail; index: number }) => (
     <View
       style={{ width: screenWidth * 0.8, marginRight: 16, flex: 1 }}>
       <View className="flex-1 rounded-xl border border-border bg-card p-4 shadow-sm" style={{ position: 'relative' }}>
@@ -361,10 +373,24 @@ export default function PopularScreen() {
         {/* Cocktail Name */}
         <Text className="mb-3 text-xl font-bold text-foreground text-center">{item.name}</Text>
         
+        {/* Custom Recipe Badge */}
+        {'isUserCreated' in item && (
+          <View style={{ alignItems: 'center', marginBottom: 8 }}>
+            <View style={{
+              backgroundColor: '#007AFF',
+              borderRadius: 6,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+            }}>
+              <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '600' }}>CUSTOM RECIPE</Text>
+            </View>
+          </View>
+        )}
+        
         {/* Images Side by Side */}
         <View className="mb-4 flex-row items-center justify-center">
-          {/* Main Image */}
-          {item.image && getCocktailImage(item.image) && (
+          {/* Main Image - only for regular cocktails */}
+          {!('isUserCreated' in item) && item.image && getCocktailImage(item.image) && (
             <Image
               source={getCocktailImage(item.image)}
               style={{ width: 120, height: 120, borderRadius: 12, marginRight: 16 }}
@@ -397,7 +423,9 @@ export default function PopularScreen() {
         {/* Instructions */}
         <View className="mb-4">
           <Text className="text-sm text-foreground leading-5">
-            {item.instructions.en}
+            {'isUserCreated' in item 
+              ? (item as any).instructions 
+              : (item as any).instructions.en}
           </Text>
         </View>
       </View>

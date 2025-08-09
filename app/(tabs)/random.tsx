@@ -145,7 +145,7 @@ export default function RandomCocktailScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }} edges={['top', 'left', 'right']}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 60 }}>
         {/* Action buttons - top corners */}
         <View style={{ 
           position: 'absolute',
@@ -192,7 +192,7 @@ export default function RandomCocktailScreen() {
         </View>
 
         {/* Cocktail Name */}
-        <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', letterSpacing: 1, paddingHorizontal: 20, paddingTop: 60, marginBottom: 20 }}>
+        <Text style={{ color: '#ffffff', fontSize: 24, textAlign: 'center', letterSpacing: 1, paddingHorizontal: 20, paddingTop: 60, marginBottom: 20 }}>
           {randomCocktail.name}
         </Text>
 
@@ -215,14 +215,13 @@ export default function RandomCocktailScreen() {
                 flexDirection: 'row', 
                 justifyContent: 'space-between', 
                 alignItems: 'center',
-                paddingVertical: 4,
+                paddingVertical: 2,
                 paddingHorizontal: 0
               }}>
               <Text style={{ 
                 color: '#ffffff', 
-                fontSize: 20, 
+                fontSize: 16, 
                 flex: 1,
-                fontWeight: '400',
                 marginLeft: 30
               }}>
                 {ingredient.name}
@@ -230,10 +229,9 @@ export default function RandomCocktailScreen() {
               {ingredient.measure && (
                 <Text style={{ 
                   color: '#cccccc', 
-                  fontSize: 18,
+                  fontSize: 14,
                   marginLeft: 10,
-                  marginRight: 30,
-                  fontWeight: '300'
+                  marginRight: 30
                 }}>
                   {MeasurementConverter.convertIngredientMeasure(
                     ingredient.measure, 
@@ -251,8 +249,7 @@ export default function RandomCocktailScreen() {
             color: '#ffffff', 
             fontSize: 18, 
             lineHeight: 26,
-            textAlign: 'center',
-            fontWeight: '400'
+            textAlign: 'center'
           }}>
             {randomCocktail.instructions.en}
           </Text>

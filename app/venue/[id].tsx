@@ -10,18 +10,25 @@ import { BackButton } from '~/components/BackButton';
 import { 
   useVenues, 
   useFavorites,
-  useUserSettings 
+  useUserSettings,
+  useUserCocktails 
 } from '~/lib/contexts/UserContext';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Venue } from '~/lib/types/user';
-import { Cocktail } from '~/lib/types/cocktail';
+import { Cocktail, UserCocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
+import { searchAllCocktails, CombinedCocktail, getVenueAllCocktails } from '~/lib/utils/combinedSearch';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 type TabType = 'cocktails' | 'ingredients';
+
+// Combined cocktail type for display
+type DisplayCocktail = (Cocktail | UserCocktail) & {
+  isUserCreated?: boolean;
+};
 
 export default function VenueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,34 +38,32 @@ export default function VenueDetailScreen() {
     addIngredientToVenue, 
     removeIngredientFromVenue,
     addCocktailToVenue,
-    removeCocktailFromVenue 
+    removeCocktailFromVenue,
+    addCustomCocktailToVenue,
+    removeCustomCocktailFromVenue
   } = useVenues();
   const { favorites, isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { settings } = useUserSettings();
-  const { cocktails, getIngredients } = useCocktails();
+  const { cocktails, getIngredients, getIngredientsSortedByCocktailCount } = useCocktails();
+  const { getAllUserCocktails } = useUserCocktails();
   
   const [activeTab, setActiveTab] = useState<TabType>('cocktails');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewCocktail, setPreviewCocktail] = useState<Cocktail | null>(null);
+  const [previewCocktail, setPreviewCocktail] = useState<DisplayCocktail | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const venue = venues.find(v => v.id === id);
   const allIngredients = useMemo(() => getIngredients(), [getIngredients]);
+  const ingredientsSortedByCount = useMemo(() => getIngredientsSortedByCocktailCount(), [getIngredientsSortedByCocktailCount]);
 
-  // Get cocktails for this venue
+  // Get cocktails for this venue using the proper utility function
   const venueCocktails = useMemo(() => {
     if (!venue) return [];
-    
-    // For My Speakeasy, show favorites
-    const cocktailIds = venue.isDefault ? favorites : venue.cocktailIds;
-    
-    return cocktailIds
-      .map(id => cocktails.find(c => c.id === id))
-      .filter((c): c is Cocktail => c !== undefined);
-  }, [venue, cocktails, favorites]);
+    return getVenueAllCocktails(venue.id);
+  }, [venue]);
 
   // Get missing ingredients from venue cocktails
   const missingIngredients = useMemo(() => {
@@ -132,30 +137,46 @@ export default function VenueDetailScreen() {
   // Filter items for search
   const filteredItems = useMemo(() => {
     if (activeTab === 'cocktails') {
-      // Filter cocktails not already in venue
-      const availableCocktails = cocktails.filter(c => {
-        const cocktailIds = venue?.isDefault ? favorites : (venue?.cocktailIds || []);
-        return !cocktailIds.includes(c.id);
-      });
+      // Get all existing cocktail IDs in this venue (regular + custom)
+      const existingIds = new Set();
       
-      if (!searchQuery) return availableCocktails.slice(0, 50);
+      if (venue) {
+        // Add regular cocktail IDs
+        const cocktailIds = venue.isDefault ? favorites : venue.cocktailIds;
+        cocktailIds.forEach(id => existingIds.add(id));
+        
+        // Add custom cocktail IDs that are already in this venue
+        const allUserCocktails = getAllUserCocktails();
+        allUserCocktails
+          .filter(c => c.venues.includes(venue.id))
+          .forEach(c => existingIds.add(c.id));
+      }
       
-      return availableCocktails.filter(c => 
-        c.name.toLowerCase().includes(searchQuery.toLowerCase())
+      // Search all cocktails (regular + user), excluding ones already in venue
+      const availableCocktails = searchAllCocktails(
+        searchQuery, 
+        { excludeIds: Array.from(existingIds) }
       );
+      
+      // Limit results if no search query
+      return searchQuery ? availableCocktails : availableCocktails.slice(0, 50);
     } else {
-      // Filter ingredients not already in venue
-      const availableIngredients = allIngredients.filter(ing => 
-        !venue?.ingredients.includes(ing)
+      // Use cached ingredients sorted by cocktail count
+      const availableIngredientsSorted = ingredientsSortedByCount.filter(item => 
+        !venue?.ingredients.includes(item.ingredient)
       );
       
-      if (!searchQuery) return availableIngredients.slice(0, 50);
+      // Filter by search query if provided
+      const filteredIngredients = searchQuery 
+        ? availableIngredientsSorted.filter(item => 
+            item.ingredient.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : availableIngredientsSorted;
       
-      return availableIngredients.filter(ing => 
-        ing.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      // Return just the ingredient names, limited to 50 for performance
+      return filteredIngredients.slice(0, 50).map(item => item.ingredient);
     }
-  }, [activeTab, searchQuery, cocktails, allIngredients, venue, favorites]);
+  }, [activeTab, searchQuery, cocktails, ingredientsSortedByCount, venue, favorites, getAllUserCocktails]);
 
   if (!venue) {
     return (
@@ -167,23 +188,38 @@ export default function VenueDetailScreen() {
     );
   }
 
-  const handleAddCocktail = async (cocktailId: string) => {
+  const handleAddCocktail = async (cocktailId: string, isUserCocktail: boolean = false) => {
     try {
-      await addCocktailToVenue(venue.id, cocktailId);
+      console.log('Adding cocktail:', cocktailId, 'isUserCocktail:', isUserCocktail, 'to venue:', venue.id);
+      if (isUserCocktail) {
+        console.log('Using addCustomCocktailToVenue');
+        await addCustomCocktailToVenue(venue.id, cocktailId);
+      } else {
+        console.log('Using addCocktailToVenue');
+        await addCocktailToVenue(venue.id, cocktailId);
+      }
+      console.log('Successfully added cocktail');
       setShowAddModal(false);
       setSearchQuery('');
     } catch (error) {
-      Alert.alert('Error', 'Failed to add cocktail');
+      console.error('Error adding cocktail:', error);
+      Alert.alert('Error', `Failed to add cocktail: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   const handleRemoveCocktail = async (cocktailId: string) => {
-    const cocktail = cocktails.find(c => c.id === cocktailId);
+    // Find the cocktail in either regular or user cocktails
+    const regularCocktail = cocktails.find(c => c.id === cocktailId);
+    const userCocktails = getAllUserCocktails();
+    const userCocktail = userCocktails.find(c => c.id === cocktailId);
+    
+    const cocktail = regularCocktail || userCocktail;
     const cocktailName = cocktail?.name || 'this cocktail';
+    const isUserCocktail = !!userCocktail;
     
     Alert.alert(
       'Remove Cocktail',
-      `Are you sure you want to remove "${cocktailName}" from ${venue.name}?`,
+      `Are you sure you want to remove "${cocktailName}" from ${venue?.name}?`,
       [
         {
           text: 'Cancel',
@@ -194,7 +230,13 @@ export default function VenueDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await removeCocktailFromVenue(venue.id, cocktailId);
+              if (isUserCocktail && !venue?.isDefault) {
+                // Remove custom cocktail from non-default venue
+                await removeCustomCocktailFromVenue(venue.id, cocktailId);
+              } else {
+                // Remove regular cocktail or handle default venue
+                await removeCocktailFromVenue(venue.id, cocktailId);
+              }
             } catch (error) {
               Alert.alert('Error', 'Failed to remove cocktail');
             }
@@ -207,8 +249,9 @@ export default function VenueDetailScreen() {
   const handleAddIngredient = async (ingredient: string) => {
     try {
       await addIngredientToVenue(venue.id, ingredient);
-      setShowAddModal(false);
-      setSearchQuery('');
+      // Don't close modal, don't clear search query - stay focused
+      // The ingredient will be automatically removed from the filtered list
+      // because it's now in venue.ingredients
     } catch (error) {
       Alert.alert('Error', 'Failed to add ingredient');
     }
@@ -222,7 +265,7 @@ export default function VenueDetailScreen() {
     }
   };
 
-  const handlePreviewCocktail = (cocktail: Cocktail) => {
+  const handlePreviewCocktail = (cocktail: DisplayCocktail) => {
     console.log('Preview cocktail:', cocktail);
     console.log('Setting preview cocktail and showing modal');
     setPreviewCocktail(cocktail);
@@ -268,7 +311,7 @@ export default function VenueDetailScreen() {
         }}>
           <BackButton />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
+            <Text style={{ fontSize: 20, color: '#ffffff' }}>
               {venue.name}
             </Text>
             {venue.isDefault && (
@@ -343,7 +386,7 @@ export default function VenueDetailScreen() {
                     borderColor: '#333333',
                   }}>
                   <FontAwesome name="plus" size={16} color="#10B981" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#10B981', fontSize: 14, fontWeight: '600' }}>
+                  <Text style={{ color: '#10B981', fontSize: 14 }}>
                     {venue.isDefault ? 'Add to Favorites' : 'Add Cocktails'}
                   </Text>
                 </Pressable>
@@ -363,7 +406,7 @@ export default function VenueDetailScreen() {
                       borderColor: '#9C27B0',
                     }}>
                     <FontAwesome name="lightbulb-o" size={16} color="#9C27B0" style={{ marginRight: 8 }} />
-                    <Text style={{ color: '#9C27B0', fontSize: 14, fontWeight: '600' }}>
+                    <Text style={{ color: '#9C27B0', fontSize: 14 }}>
                       Suggest Cocktails
                     </Text>
                   </Pressable>
@@ -383,11 +426,24 @@ export default function VenueDetailScreen() {
                     alignItems: 'center',
                   }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '500' }}>
-                      {cocktail.name}
-                    </Text>
-                    <Text style={{ color: '#888888', fontSize: 12, marginTop: 2 }}>
-                      {cocktail.category} • {cocktail.glass}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                      <Text style={{ color: '#ffffff', fontSize: 16 }}>
+                        {cocktail.name}
+                      </Text>
+                      {cocktail.isUserCreated && (
+                        <View style={{
+                          backgroundColor: '#007AFF',
+                          borderRadius: 6,
+                          paddingHorizontal: 4,
+                          paddingVertical: 1,
+                          marginLeft: 8
+                        }}>
+                          <Text style={{ color: '#ffffff', fontSize: 8 }}>CUSTOM</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ color: '#888888', fontSize: 12 }}>
+                      {cocktail.isUserCreated ? 'Custom Recipe' : cocktail.category} • {cocktail.glass}
                     </Text>
                   </View>
                   
@@ -401,8 +457,15 @@ export default function VenueDetailScreen() {
                     
                     <Pressable
                       onPress={() => handlePreviewCocktail(cocktail)}
-                      style={{ padding: 8 }}>
-                      <FontAwesome name="eye" size={18} color="#007AFF" />
+                      style={{ 
+                        backgroundColor: '#007AFF',
+                        borderRadius: 6,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        minWidth: 45,
+                        alignItems: 'center'
+                      }}>
+                      <FontAwesome name="eye" size={16} color="#ffffff" />
                     </Pressable>
                     
                     <Pressable
@@ -443,7 +506,7 @@ export default function VenueDetailScreen() {
                     borderColor: '#333333',
                   }}>
                   <FontAwesome name="plus" size={16} color="#10B981" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#10B981', fontSize: 14, fontWeight: '600' }}>
+                  <Text style={{ color: '#10B981', fontSize: 14 }}>
                     Add Ingredients
                   </Text>
                 </Pressable>
@@ -463,7 +526,7 @@ export default function VenueDetailScreen() {
                       borderColor: '#FF8F00',
                     }}>
                     <FontAwesome name="exclamation-triangle" size={16} color="#FF8F00" style={{ marginRight: 8 }} />
-                    <Text style={{ color: '#FF8F00', fontSize: 14, fontWeight: '600' }}>
+                    <Text style={{ color: '#FF8F00', fontSize: 14 }}>
                       Missing ({missingIngredients.length})
                     </Text>
                   </Pressable>
@@ -530,9 +593,9 @@ export default function VenueDetailScreen() {
                   <Text style={{ 
                     flex: 1,
                     fontSize: 20, 
-                    fontWeight: 'bold', 
-                    color: '#ffffff' 
-                  }}>
+ 
+                    color: '#ffffff',
+                        }}>
                     Add {activeTab === 'cocktails' ? 'Cocktails' : 'Ingredients'}
                   </Text>
                   <Pressable
@@ -575,12 +638,12 @@ export default function VenueDetailScreen() {
                   data={filteredItems}
                   keyExtractor={(item) => 
                     activeTab === 'cocktails' 
-                      ? (item as Cocktail).id 
+                      ? (item as CombinedCocktail).id 
                       : item as string
                   }
                   renderItem={({ item }) => {
                     if (activeTab === 'cocktails') {
-                      const cocktail = item as Cocktail;
+                      const cocktail = item as CombinedCocktail;
                       return (
                         <View
                           style={{
@@ -592,11 +655,24 @@ export default function VenueDetailScreen() {
                             alignItems: 'center',
                           }}>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ color: '#ffffff', fontSize: 16 }}>
-                              {cocktail.name}
-                            </Text>
-                            <Text style={{ color: '#888888', fontSize: 12, marginTop: 2 }}>
-                              {cocktail.category}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                              <Text style={{ color: '#ffffff', fontSize: 16 }}>
+                                {cocktail.name}
+                              </Text>
+                              {cocktail.isUserCreated && (
+                                <View style={{
+                                  backgroundColor: '#007AFF',
+                                  borderRadius: 6,
+                                  paddingHorizontal: 4,
+                                  paddingVertical: 1,
+                                  marginLeft: 8
+                                }}>
+                                  <Text style={{ color: '#ffffff', fontSize: 8 }}>CUSTOM</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={{ color: '#888888', fontSize: 12 }}>
+                              {cocktail.isUserCreated ? 'Custom Recipe' : (cocktail as Cocktail).category}
                             </Text>
                           </View>
                           
@@ -604,15 +680,29 @@ export default function VenueDetailScreen() {
                             {/* Preview Button */}
                             <Pressable
                               onPress={() => handlePreviewCocktail(cocktail)}
-                              style={{ padding: 8 }}>
-                              <FontAwesome name="eye" size={18} color="#007AFF" />
+                              style={{ 
+                                backgroundColor: '#007AFF',
+                                borderRadius: 6,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                minWidth: 45,
+                                alignItems: 'center'
+                              }}>
+                              <FontAwesome name="eye" size={16} color="#ffffff" />
                             </Pressable>
                             
                             {/* Add Button */}
                             <Pressable
-                              onPress={() => handleAddCocktail(cocktail.id)}
-                              style={{ padding: 8 }}>
-                              <FontAwesome name="plus-circle" size={20} color="#10B981" />
+                              onPress={() => handleAddCocktail(cocktail.id, cocktail.isUserCreated)}
+                              style={{ 
+                                backgroundColor: '#10B981',
+                                borderRadius: 6,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                minWidth: 45,
+                                alignItems: 'center'
+                              }}>
+                              <FontAwesome name="plus-circle" size={18} color="#ffffff" />
                             </Pressable>
                           </View>
                         </View>
@@ -634,7 +724,16 @@ export default function VenueDetailScreen() {
                           <Text style={{ color: '#ffffff', fontSize: 16, flex: 1 }}>
                             {ingredient}
                           </Text>
-                          <FontAwesome name="plus-circle" size={20} color="#10B981" />
+                          <View style={{
+                            backgroundColor: '#10B981',
+                            borderRadius: 6,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            minWidth: 45,
+                            alignItems: 'center'
+                          }}>
+                            <FontAwesome name="plus-circle" size={18} color="#ffffff" />
+                          </View>
                         </Pressable>
                       );
                     }
@@ -667,9 +766,9 @@ export default function VenueDetailScreen() {
                   <Text style={{ 
                     flex: 1,
                     fontSize: 20, 
-                    fontWeight: 'bold', 
-                    color: '#ffffff' 
-                  }}>
+ 
+                    color: '#ffffff',
+                        }}>
                     Suggested Cocktails
                   </Text>
                   <Pressable
@@ -684,7 +783,7 @@ export default function VenueDetailScreen() {
                   color: '#888888',
                   fontSize: 14,
                   marginBottom: 16,
-                }}>
+                    }}>
                   Based on your {venue.ingredients.length} ingredient{venue.ingredients.length !== 1 ? 's' : ''}
                 </Text>
 
@@ -696,16 +795,16 @@ export default function VenueDetailScreen() {
                     renderItem={({ item }) => (
                       <View
                         style={{
-                          backgroundColor: item.hasAllIngredients ? '#064e3b' : '#1a1a1a',
+                          backgroundColor: '#1a1a1a',
                           borderRadius: 8,
                           padding: 12,
                           marginBottom: 8,
-                          borderWidth: item.hasAllIngredients ? 1 : 0,
-                          borderColor: item.hasAllIngredients ? '#10B981' : 'transparent',
+                          borderWidth: 1,
+                          borderColor: '#333333',
                         }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '500' }}>
+                            <Text style={{ color: '#ffffff', fontSize: 16 }}>
                               {item.cocktail.name}
                             </Text>
                             <Text style={{ 
@@ -727,8 +826,15 @@ export default function VenueDetailScreen() {
                             {/* Preview Button */}
                             <Pressable
                               onPress={() => handlePreviewCocktail(item.cocktail)}
-                              style={{ padding: 8 }}>
-                              <FontAwesome name="eye" size={18} color="#007AFF" />
+                              style={{ 
+                                backgroundColor: '#007AFF',
+                                borderRadius: 6,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                minWidth: 45,
+                                alignItems: 'center'
+                              }}>
+                              <FontAwesome name="eye" size={16} color="#ffffff" />
                             </Pressable>
                             
                             {/* Add Button */}
@@ -737,11 +843,18 @@ export default function VenueDetailScreen() {
                                 handleAddCocktail(item.cocktail.id);
                                 setShowSuggestModal(false);
                               }}
-                              style={{ padding: 8 }}>
-                              <FontAwesome name="plus-circle" size={20} color="#10B981" />
+                              style={{ 
+                                backgroundColor: '#10B981',
+                                borderRadius: 6,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                minWidth: 45,
+                                alignItems: 'center'
+                              }}>
+                              <FontAwesome name="plus-circle" size={18} color="#ffffff" />
                             </Pressable>
                             
-                            <View style={{ alignItems: 'center' }}>
+                            <View style={{ alignItems: 'center', justifyContent: 'flex-start' }}>
                               <View style={{
                                 backgroundColor: item.hasAllIngredients ? '#10B981' : '#9C27B0',
                                 borderRadius: 20,
@@ -749,13 +862,13 @@ export default function VenueDetailScreen() {
                                 height: 40,
                                 justifyContent: 'center',
                                 alignItems: 'center',
-                                marginBottom: 4,
+                                marginTop: 12, // Align circle with buttons
                               }}>
-                                <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold' }}>
+                                <Text style={{ color: '#ffffff', fontSize: 18 }}>
                                   {item.hasAllIngredients ? '✓' : item.missingCount}
                                 </Text>
                               </View>
-                              <Text style={{ color: '#666666', fontSize: 10 }}>
+                              <Text style={{ color: '#666666', fontSize: 10, marginTop: 4 }}>
                                 {item.hasAllIngredients ? 'ready' : 'missing'}
                               </Text>
                             </View>
@@ -813,9 +926,9 @@ export default function VenueDetailScreen() {
                   <Text style={{ 
                     flex: 1,
                     fontSize: 20, 
-                    fontWeight: 'bold', 
-                    color: '#ffffff' 
-                  }}>
+ 
+                    color: '#ffffff',
+                        }}>
                     Missing Ingredients
                   </Text>
                   <Pressable
@@ -830,7 +943,7 @@ export default function VenueDetailScreen() {
                   color: '#888888',
                   fontSize: 14,
                   marginBottom: 16,
-                }}>
+                    }}>
                   Ingredients needed for your {venueCocktails.length} cocktail{venueCocktails.length !== 1 ? 's' : ''} but not in your venue
                 </Text>
 
@@ -860,7 +973,16 @@ export default function VenueDetailScreen() {
                       <Text style={{ color: '#ffffff', fontSize: 16, flex: 1 }}>
                         {item}
                       </Text>
-                      <FontAwesome name="plus-circle" size={20} color="#FF8F00" />
+                      <View style={{
+                        backgroundColor: '#FF8F00',
+                        borderRadius: 6,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        minWidth: 45,
+                        alignItems: 'center'
+                      }}>
+                        <FontAwesome name="plus-circle" size={18} color="#ffffff" />
+                      </View>
                     </Pressable>
                   )}
                   showsVerticalScrollIndicator={false}
@@ -950,16 +1072,27 @@ export default function VenueDetailScreen() {
               </Pressable>
 
               {/* Cocktail Name */}
-              <Text style={{ 
-                fontSize: 24, 
-                fontWeight: 'bold', 
-                color: '#ffffff', 
-                textAlign: 'center',
-                marginTop: 40,
-                marginBottom: 20,
-              }}>
-                {previewCocktail.name}
-              </Text>
+              <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 20 }}>
+                <Text style={{ 
+                  fontSize: 24, 
+ 
+                  color: '#ffffff', 
+                  textAlign: 'center'
+                }}>
+                  {previewCocktail.name}
+                </Text>
+                {previewCocktail.isUserCreated && (
+                  <View style={{
+                    backgroundColor: '#007AFF',
+                    borderRadius: 8,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    marginTop: 8
+                  }}>
+                    <Text style={{ color: '#ffffff', fontSize: 12 }}>CUSTOM RECIPE</Text>
+                  </View>
+                )}
+              </View>
               
               {/* Images Side by Side */}
               <View style={{ 
@@ -969,8 +1102,8 @@ export default function VenueDetailScreen() {
                 marginBottom: 24,
                 gap: 16,
               }}>
-                {/* Main Image */}
-                {previewCocktail.image && getCocktailImage(previewCocktail.image) && (
+                {/* Main Image - only for regular cocktails */}
+                {!previewCocktail.isUserCreated && previewCocktail.image && getCocktailImage(previewCocktail.image) && (
                   <Image
                     source={getCocktailImage(previewCocktail.image)}
                     style={{ width: 120, height: 120, borderRadius: 12 }}
@@ -992,7 +1125,7 @@ export default function VenueDetailScreen() {
               <View style={{ marginBottom: 24 }}>
                 <Text style={{ 
                   fontSize: 18, 
-                  fontWeight: 'bold', 
+ 
                   color: '#ffffff', 
                   marginBottom: 12 
                 }}>
@@ -1017,7 +1150,7 @@ export default function VenueDetailScreen() {
               <View>
                 <Text style={{ 
                   fontSize: 18, 
-                  fontWeight: 'bold', 
+ 
                   color: '#ffffff', 
                   marginBottom: 12 
                 }}>
@@ -1028,7 +1161,9 @@ export default function VenueDetailScreen() {
                   fontSize: 16, 
                   lineHeight: 24 
                 }}>
-                  {previewCocktail.instructions.en}
+                  {previewCocktail.isUserCreated 
+                    ? (previewCocktail as UserCocktail).instructions 
+                    : (previewCocktail as Cocktail).instructions.en}
                 </Text>
               </View>
               

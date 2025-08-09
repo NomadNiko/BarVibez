@@ -48,3 +48,16 @@ export interface SearchFilters {
   tier?: number;
   tags?: string[];
 }
+
+export interface UserCocktail {
+  id: string;
+  name: string;
+  glass: string;
+  instructions: string; // Single string, max 256 chars
+  ingredients: CocktailIngredient[];
+  image?: string; // For future image upload feature
+  venues: string[]; // Array of venue IDs this cocktail belongs to
+  isUserCreated: true; // Flag to distinguish from database cocktails
+  createdAt: string;
+  updatedAt: string;
+}

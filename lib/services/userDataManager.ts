@@ -1,4 +1,5 @@
 import { UserData, UserSettings, Venue } from '../types/user';
+import { UserCocktail, CocktailIngredient } from '../types/cocktail';
 import { UserStorage } from '../utils/storage';
 
 /**
@@ -571,6 +572,417 @@ export class UserDataManager {
       this.notifyListeners();
     } catch (error) {
       console.error('Failed to remove cocktail from venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new user cocktail
+   */
+  static createUserCocktail(
+    name: string,
+    ingredients: CocktailIngredient[],
+    instructions: string,
+    glass: string,
+    venueIds: string[]
+  ): UserCocktail {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      // Validate inputs
+      if (!name.trim()) {
+        throw new Error('Cocktail name is required');
+      }
+      if (ingredients.length === 0) {
+        throw new Error('At least one ingredient is required');
+      }
+      if (!instructions.trim()) {
+        throw new Error('Instructions are required');
+      }
+      if (instructions.length > 256) {
+        throw new Error('Instructions must be 256 characters or less');
+      }
+      if (!glass.trim()) {
+        throw new Error('Glass type is required');
+      }
+
+      // Get default venue ID
+      const defaultVenue = this.currentUser.venues.find(v => v.isDefault);
+      if (!defaultVenue) {
+        throw new Error('Default venue not found');
+      }
+
+      // Always include default venue, plus any additional venues
+      const allVenueIds = [defaultVenue.id, ...venueIds.filter(id => id !== defaultVenue.id)];
+
+      const newCocktail: UserCocktail = {
+        id: `user_cocktail_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: name.trim(),
+        glass: glass.trim(),
+        instructions: instructions.trim(),
+        ingredients: ingredients.map(ing => ({
+          name: ing.name.trim(),
+          measure: ing.measure?.trim()
+        })),
+        venues: allVenueIds,
+        isUserCreated: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Save the cocktail to storage
+      UserStorage.saveUserCocktail(newCocktail);
+
+      // Update user data to include the new cocktail ID
+      this.currentUser = {
+        ...this.currentUser,
+        customCocktails: [...(this.currentUser.customCocktails || []), newCocktail.id],
+        updatedAt: new Date().toISOString()
+      };
+
+      // Update venues to include the cocktail
+      const updatedVenues = this.currentUser.venues.map(venue => {
+        if (allVenueIds.includes(venue.id)) {
+          return {
+            ...venue,
+            customCocktailIds: [...venue.customCocktailIds, newCocktail.id],
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return venue;
+      });
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: updatedVenues,
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+
+      return newCocktail;
+    } catch (error) {
+      console.error('Failed to create user cocktail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a user cocktail by ID
+   */
+  static getUserCocktail(cocktailId: string): UserCocktail | null {
+    try {
+      return UserStorage.getUserCocktail(cocktailId);
+    } catch (error) {
+      console.error('Failed to get user cocktail:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all user cocktails
+   */
+  static getAllUserCocktails(): UserCocktail[] {
+    if (!this.currentUser) {
+      return [];
+    }
+
+    try {
+      const cocktailIds = this.currentUser.customCocktails || [];
+      return cocktailIds
+        .map(id => UserStorage.getUserCocktail(id))
+        .filter((cocktail): cocktail is UserCocktail => cocktail !== null);
+    } catch (error) {
+      console.error('Failed to get all user cocktails:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update a user cocktail
+   */
+  static updateUserCocktail(
+    cocktailId: string,
+    updates: {
+      name?: string;
+      ingredients?: CocktailIngredient[];
+      instructions?: string;
+      glass?: string;
+      venueIds?: string[];
+    }
+  ): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const existingCocktail = UserStorage.getUserCocktail(cocktailId);
+      if (!existingCocktail) {
+        throw new Error('User cocktail not found');
+      }
+
+      // Validate updates
+      if (updates.name !== undefined && !updates.name.trim()) {
+        throw new Error('Cocktail name cannot be empty');
+      }
+      if (updates.instructions !== undefined) {
+        if (!updates.instructions.trim()) {
+          throw new Error('Instructions cannot be empty');
+        }
+        if (updates.instructions.length > 256) {
+          throw new Error('Instructions must be 256 characters or less');
+        }
+      }
+      if (updates.ingredients !== undefined && updates.ingredients.length === 0) {
+        throw new Error('At least one ingredient is required');
+      }
+
+      // Handle venue updates
+      let finalVenueIds = existingCocktail.venues;
+      if (updates.venueIds !== undefined) {
+        const defaultVenue = this.currentUser.venues.find(v => v.isDefault);
+        if (!defaultVenue) {
+          throw new Error('Default venue not found');
+        }
+        // Always include default venue
+        finalVenueIds = [defaultVenue.id, ...updates.venueIds.filter(id => id !== defaultVenue.id)];
+      }
+
+      const updatedCocktail: UserCocktail = {
+        ...existingCocktail,
+        name: updates.name?.trim() ?? existingCocktail.name,
+        glass: updates.glass?.trim() ?? existingCocktail.glass,
+        instructions: updates.instructions?.trim() ?? existingCocktail.instructions,
+        ingredients: updates.ingredients?.map(ing => ({
+          name: ing.name.trim(),
+          measure: ing.measure?.trim()
+        })) ?? existingCocktail.ingredients,
+        venues: finalVenueIds,
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserCocktail(updatedCocktail);
+
+      // Update venue associations if venues changed
+      if (updates.venueIds !== undefined) {
+        const updatedVenues = this.currentUser.venues.map(venue => {
+          const hadCocktail = existingCocktail.venues.includes(venue.id);
+          const shouldHaveCocktail = finalVenueIds.includes(venue.id);
+
+          if (hadCocktail && !shouldHaveCocktail) {
+            // Remove from venue
+            return {
+              ...venue,
+              customCocktailIds: venue.customCocktailIds.filter(id => id !== cocktailId),
+              updatedAt: new Date().toISOString()
+            };
+          } else if (!hadCocktail && shouldHaveCocktail) {
+            // Add to venue
+            return {
+              ...venue,
+              customCocktailIds: [...venue.customCocktailIds, cocktailId],
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return venue;
+        });
+
+        this.currentUser = {
+          ...this.currentUser,
+          venues: updatedVenues,
+          updatedAt: new Date().toISOString()
+        };
+
+        UserStorage.saveUserData(this.currentUser);
+      }
+
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to update user cocktail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a user cocktail
+   */
+  static deleteUserCocktail(cocktailId: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const existingCocktail = UserStorage.getUserCocktail(cocktailId);
+      if (!existingCocktail) {
+        throw new Error('User cocktail not found');
+      }
+
+      // Remove from storage
+      UserStorage.deleteUserCocktail(cocktailId);
+
+      // Remove from user's custom cocktails list
+      this.currentUser = {
+        ...this.currentUser,
+        customCocktails: (this.currentUser.customCocktails || []).filter(id => id !== cocktailId),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Remove from all venues
+      const updatedVenues = this.currentUser.venues.map(venue => ({
+        ...venue,
+        customCocktailIds: venue.customCocktailIds.filter(id => id !== cocktailId),
+        updatedAt: new Date().toISOString()
+      }));
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: updatedVenues,
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to delete user cocktail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add custom cocktail to venue (for existing user cocktails)
+   */
+  static addCustomCocktailToVenue(venueId: string, cocktailId: string): void {
+    console.log('UserDataManager.addCustomCocktailToVenue called with:', { venueId, cocktailId });
+    
+    if (!this.currentUser) {
+      console.error('No current user found');
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      console.log('Available venues:', venues.map(v => ({ id: v.id, name: v.name })));
+      
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      console.log('Venue index:', venueIndex);
+      
+      if (venueIndex === -1) {
+        console.error('Venue not found with ID:', venueId);
+        throw new Error('Venue not found');
+      }
+
+      const venue = venues[venueIndex];
+      console.log('Found venue:', { id: venue.id, name: venue.name, customCocktailIds: venue.customCocktailIds });
+      
+      const cocktail = UserStorage.getUserCocktail(cocktailId);
+      console.log('Found cocktail:', cocktail ? { id: cocktail.id, name: cocktail.name } : null);
+      
+      if (!cocktail) {
+        console.error('User cocktail not found with ID:', cocktailId);
+        throw new Error('User cocktail not found');
+      }
+
+      // Update venue
+      if (!venue.customCocktailIds.includes(cocktailId)) {
+        console.log('Adding cocktail to venue (not already present)');
+        const updatedVenue = {
+          ...venue,
+          customCocktailIds: [...venue.customCocktailIds, cocktailId],
+          updatedAt: new Date().toISOString()
+        };
+
+        const newVenues = [...venues];
+        newVenues[venueIndex] = updatedVenue;
+
+        this.currentUser = {
+          ...this.currentUser,
+          venues: newVenues,
+          updatedAt: new Date().toISOString()
+        };
+
+        // Update cocktail venues list
+        const updatedCocktail = {
+          ...cocktail,
+          venues: [...cocktail.venues, venueId].filter((id, index, arr) => arr.indexOf(id) === index), // Remove duplicates
+          updatedAt: new Date().toISOString()
+        };
+
+        console.log('Saving updated cocktail:', updatedCocktail);
+        console.log('Saving updated user data');
+        
+        UserStorage.saveUserCocktail(updatedCocktail);
+        UserStorage.saveUserData(this.currentUser);
+        this.notifyListeners();
+        
+        console.log('Successfully added custom cocktail to venue');
+      } else {
+        console.log('Cocktail already exists in venue');
+      }
+    } catch (error) {
+      console.error('Failed to add custom cocktail to venue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove custom cocktail from venue (but not from default venue)
+   */
+  static removeCustomCocktailFromVenue(venueId: string, cocktailId: string): void {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      const venues = this.currentUser.venues || [];
+      const venueIndex = venues.findIndex(v => v.id === venueId);
+      
+      if (venueIndex === -1) {
+        throw new Error('Venue not found');
+      }
+
+      const venue = venues[venueIndex];
+      const cocktail = UserStorage.getUserCocktail(cocktailId);
+      
+      if (!cocktail) {
+        throw new Error('User cocktail not found');
+      }
+
+      // Cannot remove from default venue
+      if (venue.isDefault) {
+        throw new Error('Cannot remove custom cocktail from default venue');
+      }
+
+      // Update venue
+      const updatedVenue = {
+        ...venue,
+        customCocktailIds: venue.customCocktailIds.filter(id => id !== cocktailId),
+        updatedAt: new Date().toISOString()
+      };
+
+      const newVenues = [...venues];
+      newVenues[venueIndex] = updatedVenue;
+
+      this.currentUser = {
+        ...this.currentUser,
+        venues: newVenues,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Update cocktail venues list
+      const updatedCocktail = {
+        ...cocktail,
+        venues: cocktail.venues.filter(id => id !== venueId),
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserCocktail(updatedCocktail);
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+    } catch (error) {
+      console.error('Failed to remove custom cocktail from venue:', error);
       throw error;
     }
   }
