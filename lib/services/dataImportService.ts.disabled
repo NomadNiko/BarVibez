@@ -1,0 +1,344 @@
+import * as FileSystem from 'expo-file-system';
+import { 
+  BarVibezExport, 
+  ImportOptions, 
+  ImportResult, 
+  ExportValidation, 
+  SUPPORTED_EXPORT_VERSIONS,
+  MAX_FILE_SIZE_MB 
+} from '../types/export';
+import { Venue } from '../types/user';
+import { UserCocktail } from '../types/cocktail';
+
+/**
+ * Service for importing and validating user data from JSON files
+ */
+export class DataImportService {
+  
+  /**
+   * Pick and read import file from device
+   */
+  static async pickImportFile(): Promise<BarVibezExport | null> {
+    try {
+      console.log('Opening document picker...');
+      
+      // Dynamically import document picker to avoid build issues
+      const DocumentPicker = await import('expo-document-picker');
+      
+      // Check if document picker module is available (requires development build)
+      if (!DocumentPicker.getDocumentAsync) {
+        throw new Error('File import requires a development build with expo-document-picker. Please rebuild your development build.');
+      }
+      
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      
+      if (result.canceled) {
+        console.log('User cancelled file selection');
+        return null;
+      }
+      
+      const file = result.assets[0];
+      console.log(`Selected file: ${file.name} (${file.size} bytes)`);
+      
+      // Check file size
+      if (file.size && file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE_MB}MB`);
+      }
+      
+      // Read file content
+      const fileContent = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // Parse JSON
+      const importData = JSON.parse(fileContent) as BarVibezExport;
+      
+      // Validate the import data
+      const validation = this.validateImportData(importData);
+      if (!validation.isValid) {
+        throw new Error(`Invalid import file: ${validation.errors.join(', ')}`);
+      }
+      
+      if (validation.warnings.length > 0) {
+        console.warn('Import warnings:', validation.warnings);
+      }
+      
+      console.log(`Successfully loaded import file with ${validation.totalVenues} venues and ${validation.totalCustomCocktails} cocktails`);
+      return importData;
+      
+    } catch (error) {
+      console.error('Failed to pick import file:', error);
+      throw new Error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  /**
+   * Validate import data structure and version
+   */
+  static validateImportData(data: any): ExportValidation {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    
+    try {
+      // Check if it's a valid object
+      if (!data || typeof data !== 'object') {
+        errors.push('Invalid JSON structure');
+        return { isValid: false, version: 'unknown', errors, warnings, totalVenues: 0, totalCustomCocktails: 0 };
+      }
+      
+      // Check metadata
+      if (!data.metadata) {
+        errors.push('Missing metadata section');
+      } else {
+        const { metadata } = data;
+        
+        if (!metadata.exportVersion) {
+          errors.push('Missing export version');
+        } else if (!SUPPORTED_EXPORT_VERSIONS.includes(metadata.exportVersion)) {
+          errors.push(`Unsupported export version: ${metadata.exportVersion}`);
+        }
+        
+        if (!metadata.exportDate) {
+          warnings.push('Missing export date');
+        }
+        
+        if (!metadata.exportedBy) {
+          warnings.push('Missing exported by information');
+        }
+      }
+      
+      // Check venues array
+      if (!Array.isArray(data.venues)) {
+        errors.push('Venues must be an array');
+      } else {
+        for (let i = 0; i < data.venues.length; i++) {
+          const venue = data.venues[i];
+          const venueErrors = this.validateVenue(venue, i);
+          errors.push(...venueErrors);
+        }
+      }
+      
+      // Check custom cocktails array
+      if (!Array.isArray(data.customCocktails)) {
+        errors.push('Custom cocktails must be an array');
+      } else {
+        for (let i = 0; i < data.customCocktails.length; i++) {
+          const cocktail = data.customCocktails[i];
+          const cocktailErrors = this.validateCustomCocktail(cocktail, i);
+          errors.push(...cocktailErrors);
+        }
+      }
+      
+      // Check counts match
+      const actualVenues = Array.isArray(data.venues) ? data.venues.length : 0;
+      const actualCocktails = Array.isArray(data.customCocktails) ? data.customCocktails.length : 0;
+      
+      if (data.metadata?.totalVenues !== actualVenues) {
+        warnings.push(`Venue count mismatch: metadata says ${data.metadata?.totalVenues}, found ${actualVenues}`);
+      }
+      
+      if (data.metadata?.totalCustomCocktails !== actualCocktails) {
+        warnings.push(`Cocktail count mismatch: metadata says ${data.metadata?.totalCustomCocktails}, found ${actualCocktails}`);
+      }
+      
+      return {
+        isValid: errors.length === 0,
+        version: data.metadata?.exportVersion || 'unknown',
+        errors,
+        warnings,
+        totalVenues: actualVenues,
+        totalCustomCocktails: actualCocktails,
+      };
+      
+    } catch (error) {
+      errors.push(`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { isValid: false, version: 'unknown', errors, warnings, totalVenues: 0, totalCustomCocktails: 0 };
+    }
+  }
+  
+  /**
+   * Process import with specified options
+   */
+  static processImport(
+    importData: BarVibezExport,
+    existingVenues: Venue[],
+    existingCocktails: UserCocktail[],
+    options: ImportOptions
+  ): ImportResult {
+    const result: ImportResult = {
+      success: false,
+      venues: { imported: 0, skipped: 0, overwritten: 0 },
+      customCocktails: { imported: 0, skipped: 0, overwritten: 0 },
+      errors: [],
+    };
+    
+    try {
+      // Process venues
+      if (options.includeVenues && importData.venues) {
+        const venueResult = this.processVenueImport(
+          importData.venues,
+          existingVenues,
+          options.mode
+        );
+        result.venues = venueResult;
+      }
+      
+      // Process custom cocktails
+      if (options.includeCustomCocktails && importData.customCocktails) {
+        const cocktailResult = this.processCocktailImport(
+          importData.customCocktails,
+          existingCocktails,
+          options.mode
+        );
+        result.customCocktails = cocktailResult;
+      }
+      
+      result.success = result.errors.length === 0;
+      return result;
+      
+    } catch (error) {
+      result.errors.push(error instanceof Error ? error.message : 'Unknown processing error');
+      return result;
+    }
+  }
+  
+  /**
+   * Validate a single venue
+   */
+  private static validateVenue(venue: any, index: number): string[] {
+    const errors: string[] = [];
+    
+    if (!venue || typeof venue !== 'object') {
+      errors.push(`Venue ${index}: Invalid venue object`);
+      return errors;
+    }
+    
+    if (!venue.id || typeof venue.id !== 'string') {
+      errors.push(`Venue ${index}: Missing or invalid ID`);
+    }
+    
+    if (!venue.name || typeof venue.name !== 'string') {
+      errors.push(`Venue ${index}: Missing or invalid name`);
+    }
+    
+    if (!Array.isArray(venue.ingredients)) {
+      errors.push(`Venue ${index}: Ingredients must be an array`);
+    }
+    
+    if (!Array.isArray(venue.cocktailIds)) {
+      errors.push(`Venue ${index}: Cocktail IDs must be an array`);
+    }
+    
+    if (!Array.isArray(venue.customCocktailIds)) {
+      errors.push(`Venue ${index}: Custom cocktail IDs must be an array`);
+    }
+    
+    return errors;
+  }
+  
+  /**
+   * Validate a single custom cocktail
+   */
+  private static validateCustomCocktail(cocktail: any, index: number): string[] {
+    const errors: string[] = [];
+    
+    if (!cocktail || typeof cocktail !== 'object') {
+      errors.push(`Cocktail ${index}: Invalid cocktail object`);
+      return errors;
+    }
+    
+    if (!cocktail.id || typeof cocktail.id !== 'string') {
+      errors.push(`Cocktail ${index}: Missing or invalid ID`);
+    }
+    
+    if (!cocktail.name || typeof cocktail.name !== 'string') {
+      errors.push(`Cocktail ${index}: Missing or invalid name`);
+    }
+    
+    if (!cocktail.glass || typeof cocktail.glass !== 'string') {
+      errors.push(`Cocktail ${index}: Missing or invalid glass`);
+    }
+    
+    if (!cocktail.instructions || typeof cocktail.instructions !== 'string') {
+      errors.push(`Cocktail ${index}: Missing or invalid instructions`);
+    }
+    
+    if (!Array.isArray(cocktail.ingredients)) {
+      errors.push(`Cocktail ${index}: Ingredients must be an array`);
+    }
+    
+    if (!Array.isArray(cocktail.venues)) {
+      errors.push(`Cocktail ${index}: Venues must be an array`);
+    }
+    
+    return errors;
+  }
+  
+  /**
+   * Process venue import based on mode
+   */
+  private static processVenueImport(
+    importVenues: Venue[],
+    existingVenues: Venue[],
+    mode: 'overwrite' | 'merge'
+  ) {
+    const result = { imported: 0, skipped: 0, overwritten: 0 };
+    
+    for (const importVenue of importVenues) {
+      // Skip default venues (should not be imported)
+      if (importVenue.isDefault) {
+        result.skipped++;
+        continue;
+      }
+      
+      const existingIndex = existingVenues.findIndex(v => 
+        v.name.toLowerCase() === importVenue.name.toLowerCase()
+      );
+      
+      if (existingIndex >= 0) {
+        if (mode === 'overwrite') {
+          result.overwritten++;
+        } else {
+          result.skipped++;
+        }
+      } else {
+        result.imported++;
+      }
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Process cocktail import based on mode
+   */
+  private static processCocktailImport(
+    importCocktails: UserCocktail[],
+    existingCocktails: UserCocktail[],
+    mode: 'overwrite' | 'merge'
+  ) {
+    const result = { imported: 0, skipped: 0, overwritten: 0 };
+    
+    for (const importCocktail of importCocktails) {
+      const existingIndex = existingCocktails.findIndex(c => 
+        c.name.toLowerCase() === importCocktail.name.toLowerCase()
+      );
+      
+      if (existingIndex >= 0) {
+        if (mode === 'overwrite') {
+          result.overwritten++;
+        } else {
+          result.skipped++;
+        }
+      } else {
+        result.imported++;
+      }
+    }
+    
+    return result;
+  }
+}

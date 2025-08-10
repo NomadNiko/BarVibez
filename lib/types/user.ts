@@ -87,6 +87,14 @@ export interface UserContextType {
   signIn: (appStoreId: string) => Promise<void>;
   signOut: () => Promise<void>;
   upgradeToProUser: () => Promise<void>;
+  
+  // Data export/import
+  exportUserData: () => Promise<string>;
+  shareExportFile: (fileUri: string) => Promise<void>;
+  getExportPreview: () => { venueCount: number; cocktailCount: number; estimatedFileSize: number } | null;
+  importDataFromFile: () => Promise<any | null>; // BarVibezExport
+  applyImportedData: (importData: any, options: any) => Promise<any>; // ImportOptions, ImportResult
+  clearCustomData: () => Promise<void>;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {

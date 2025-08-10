@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, Pressable, Linking, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { Container } from '~/components/Container';
-import { useUserSettings, useProStatus, useFavorites } from '~/lib/contexts/UserContext';
+import { useUserSettings, useProStatus, useFavorites, useUser } from '~/lib/contexts/UserContext';
 import { APP_CONFIG } from '~/config/app';
 import Purchases from 'react-native-purchases';
 import Constants from 'expo-constants';
@@ -15,7 +15,11 @@ export default function UserScreen() {
   const { settings, updateSettings } = useUserSettings();
   const { isPro } = useProStatus();
   const { favorites } = useFavorites();
+  const { clearCustomData } = useUser();
+  
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+  const [isResettingRevenueCat, setIsResettingRevenueCat] = useState(false);
 
   const handleRestorePurchases = async () => {
     setIsRestoringPurchases(true);
@@ -96,6 +100,93 @@ export default function UserScreen() {
 
   const handleSettingsPress = () => {
     router.push('/modal');
+  };
+
+  const handleClearData = async () => {
+    Alert.alert(
+      'Clear All Data',
+      `⚠️ WARNING: This will permanently delete all your custom venues and cocktails.\n\nThis cannot be undone!`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All Data',
+          style: 'destructive',
+          onPress: async () => {
+            setIsClearingData(true);
+            try {
+              await clearCustomData();
+              Alert.alert('Data Cleared', 'All custom venues and cocktails have been deleted.');
+            } catch (error: any) {
+              console.error('Clear data failed:', error);
+              Alert.alert('Clear Failed', error?.message || 'Failed to clear data.');
+            } finally {
+              setIsClearingData(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleResetRevenueCat = async () => {
+    Alert.alert(
+      'Reset RevenueCat',
+      `⚠️ WARNING: This will:\n• Log out of current RevenueCat user\n• Reset subscription status to free\n• Allow testing with a new Apple ID\n\nUse this for testing purposes only!`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset RevenueCat',
+          style: 'destructive',
+          onPress: async () => {
+            setIsResettingRevenueCat(true);
+            try {
+              console.log('Resetting RevenueCat user...');
+              
+              // Clear RevenueCat cache and reset everything
+              try {
+                // First try to log out
+                await Purchases.logOut();
+                console.log('RevenueCat logged out successfully');
+              } catch (logoutError: any) {
+                if (logoutError?.message?.includes('anonymous')) {
+                  console.log('User is anonymous, proceeding with reset');
+                } else {
+                  throw logoutError;
+                }
+              }
+              
+              // Clear offerings cache
+              try {
+                await Purchases.invalidateCustomerInfoCache();
+                console.log('Customer info cache invalidated');
+              } catch (cacheError) {
+                console.warn('Could not invalidate cache:', cacheError);
+              }
+              
+              // Create a completely new anonymous user
+              const newAnonymousId = `$RCAnonymousID:${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+              await Purchases.logIn(newAnonymousId);
+              console.log('Created new anonymous RevenueCat user:', newAnonymousId);
+              
+              // Reset subscription status to free
+              await updateSettings({ subscriptionStatus: 'free' });
+              console.log('Subscription status reset to free');
+              
+              Alert.alert(
+                'RevenueCat Reset Complete',
+                'RevenueCat user has been reset and caches cleared.\n\n🔸 To test with a new Apple ID:\n1. Go to Settings > App Store\n2. Sign out of current Apple ID\n3. Sign back in with test Apple ID\n4. Return to app and try purchasing\n\nThis ensures the App Store uses the new Apple ID for purchases.',
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              console.error('RevenueCat reset failed:', error);
+              Alert.alert('Reset Failed', error?.message || 'Failed to reset RevenueCat.');
+            } finally {
+              setIsResettingRevenueCat(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -248,6 +339,81 @@ export default function UserScreen() {
                 <Text style={{ color: '#ffffff', fontSize: 16 }}>Support & Help</Text>
               </View>
               <FontAwesome name="external-link" size={16} color="#666666" />
+            </Pressable>
+          </View>
+
+          {/* Data Management Section */}
+          <View style={{ marginBottom: 30 }}>
+            <Text style={{ color: '#ffffff', fontSize: 18, marginBottom: 16 }}>
+              Data Management
+            </Text>
+
+            {/* Clear Data Button */}
+            <Pressable
+              onPress={handleClearData}
+              disabled={isClearingData}
+              style={{
+                backgroundColor: '#1a1a1a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#333333',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                opacity: isClearingData ? 0.6 : 1,
+              }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <FontAwesome 
+                  name="trash" 
+                  size={20} 
+                  color="#F44336" 
+                  style={{ marginRight: 12 }} 
+                />
+                <Text style={{ color: '#ffffff', fontSize: 16 }}>
+                  {isClearingData ? 'Clearing...' : 'Clear All Data'}
+                </Text>
+              </View>
+              {isClearingData ? (
+                <ActivityIndicator size="small" color="#F44336" />
+              ) : (
+                <FontAwesome name="chevron-right" size={16} color="#666666" />
+              )}
+            </Pressable>
+
+            {/* Reset RevenueCat Button */}
+            <Pressable
+              onPress={handleResetRevenueCat}
+              disabled={isResettingRevenueCat}
+              style={{
+                backgroundColor: '#1a1a1a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#333333',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                opacity: isResettingRevenueCat ? 0.6 : 1,
+              }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <FontAwesome 
+                  name="sign-out" 
+                  size={20} 
+                  color="#FF9500" 
+                  style={{ marginRight: 12 }} 
+                />
+                <Text style={{ color: '#ffffff', fontSize: 16 }}>
+                  {isResettingRevenueCat ? 'Resetting...' : 'Reset RevenueCat'}
+                </Text>
+              </View>
+              {isResettingRevenueCat ? (
+                <ActivityIndicator size="small" color="#FF9500" />
+              ) : (
+                <FontAwesome name="chevron-right" size={16} color="#666666" />
+              )}
             </Pressable>
           </View>
 

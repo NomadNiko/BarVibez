@@ -63,7 +63,7 @@ export default function VenueDetailScreen() {
   const venueCocktails = useMemo(() => {
     if (!venue) return [];
     return getVenueAllCocktails(venue.id);
-  }, [venue]);
+  }, [venue, getAllUserCocktails, favorites]);
 
   // Get missing ingredients from venue cocktails
   const missingIngredients = useMemo(() => {

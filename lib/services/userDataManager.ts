@@ -1008,6 +1008,49 @@ export class UserDataManager {
     }
   }
 
+
+  /**
+   * Clear all user custom data (venues and cocktails)
+   */
+  static async clearCustomData(): Promise<void> {
+    if (!this.currentUser) {
+      throw new Error('No current user');
+    }
+
+    try {
+      // Get counts for logging
+      const customVenues = this.currentUser.venues?.filter(v => !v.isDefault) || [];
+      const customCocktails = this.currentUser.customCocktails || [];
+
+      console.log(`Clearing ${customVenues.length} custom venues and ${customCocktails.length} custom cocktails`);
+
+      // Delete all custom cocktails from storage
+      for (const cocktailId of customCocktails) {
+        try {
+          UserStorage.deleteUserCocktail(cocktailId);
+        } catch (error) {
+          console.warn(`Failed to delete cocktail ${cocktailId}:`, error);
+        }
+      }
+
+      // Update user data to keep only default venues and clear custom data
+      this.currentUser = {
+        ...this.currentUser,
+        venues: this.currentUser.venues?.filter(v => v.isDefault) || [],
+        customCocktails: [],
+        updatedAt: new Date().toISOString()
+      };
+
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+
+      console.log('Custom data cleared successfully');
+    } catch (error) {
+      console.error('Failed to clear custom data:', error);
+      throw error;
+    }
+  }
+
   /**
    * Get user statistics (for debugging)
    */

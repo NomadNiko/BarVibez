@@ -161,7 +161,7 @@ export default function SpeakeasyScreen() {
                 fontWeight: '600', 
                 marginBottom: 16 
               }}>
-                What you'll get:
+                What you&apos;ll get:
               </Text>
               
               {[

@@ -302,6 +302,17 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
+  const clearCustomData = async (): Promise<void> => {
+    try {
+      setError(null);
+      await UserDataManager.clearCustomData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to clear custom data';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const contextValue: UserContextType = {
     userData,
     isLoading,
@@ -327,6 +338,7 @@ export function UserProvider({ children }: UserProviderProps) {
     signIn,
     signOut,
     upgradeToProUser,
+    clearCustomData,
   };
 
   return (
