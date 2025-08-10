@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Pressable, ScrollView, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Text } from '~/components/nativewindui/Text';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUserSettings } from '~/lib/contexts/UserContext';
+import { useAppStoreIdentification } from '~/lib/hooks/useAppStoreIdentification';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Purchases from 'react-native-purchases';
+import Constants from 'expo-constants';
 
 export default function PurchaseScreen() {
   const router = useRouter();
@@ -16,32 +19,146 @@ export default function PurchaseScreen() {
     period?: string;
   }>();
   const { updateSettings } = useUserSettings();
+  const { hasProSubscription } = useAppStoreIdentification();
   const insets = useSafeAreaInsets();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+
+  // Redirect premium users away from purchase screen
+  useEffect(() => {
+    if (hasProSubscription()) {
+      console.log('User already has Pro subscription, redirecting away from purchase screen');
+      if (router.canDismiss()) {
+        router.dismissAll();
+      } else {
+        router.replace('/popular');
+      }
+    }
+  }, [hasProSubscription]);
 
   const handlePurchase = async () => {
     setIsProcessing(true);
-    
-    // Mock purchase delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // TODO: Implement actual RevenueCat purchase logic here
-    console.log('Mock purchase:', { optionId, title, price, period });
+    setPurchaseError(null);
     
     try {
-      // Update subscription status to premium
-      await updateSettings({ subscriptionStatus: 'premium' });
+      // Get fresh customer info to check current subscription status
+      console.log('Checking current subscription status before purchase...');
+      const currentCustomerInfo = await Purchases.getCustomerInfo();
       
-      // Close purchase screen and paywall, return to where user was
-      router.dismissAll();
-    } catch (error) {
-      console.error('Failed to update subscription status:', error);
+      const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
+      const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
+      const currentlyHasPro = currentCustomerInfo.entitlements.active[entitlementIdentifier]?.isActive;
+      
+      if (currentlyHasPro) {
+        console.log('Purchase blocked: User already has Pro subscription');
+        setPurchaseError('You already have an active subscription. If you need to change your subscription, please manage it in Settings > Subscriptions.');
+        setIsProcessing(false);
+        return;
+      }
+      
+      console.log('Starting RevenueCat purchase for product:', optionId);
+      
+      // Get the product from RevenueCat
+      const products = await Purchases.getProducts([optionId]);
+      const product = products.find(p => p.identifier === optionId);
+      
+      if (!product) {
+        throw new Error(`Product not found: ${optionId}`);
+      }
+      
+      console.log('Found product:', product.identifier, product.title);
+      
+      // Make the purchase through RevenueCat
+      const purchaseResult = await Purchases.purchaseStoreProduct(product);
+      
+      console.log('Purchase result:', {
+        productIdentifier: purchaseResult.productIdentifier,
+        customerInfo: purchaseResult.customerInfo?.originalAppUserId,
+        entitlements: Object.keys(purchaseResult.customerInfo?.entitlements.active || {})
+      });
+      
+      // Check if user has Pro entitlement (reuse entitlementIdentifier from above)
+      const hasProEntitlement = purchaseResult.customerInfo?.entitlements.active[entitlementIdentifier]?.isActive;
+      
+      if (hasProEntitlement) {
+        // Update subscription status to premium
+        await updateSettings({ subscriptionStatus: 'premium' });
+        console.log('Purchase successful - user upgraded to premium');
+        
+        // Navigate back to the main app
+        if (router.canDismiss()) {
+          router.dismissAll();
+        } else {
+          router.replace('/popular');
+        }
+      } else {
+        console.warn('Purchase completed but Pro entitlement not active');
+        setPurchaseError('Purchase completed but subscription not activated. Please contact support.');
+      }
+      
+    } catch (error: any) {
+      console.error('RevenueCat purchase failed:', error);
+      
+      // Handle user cancellation gracefully
+      if (error?.userCancelled) {
+        console.log('User cancelled the purchase');
+        // Don't show error for cancellation
+      } else {
+        const errorMessage = error?.message || 'Purchase failed. Please try again.';
+        setPurchaseError(errorMessage);
+      }
+    } finally {
       setIsProcessing(false);
     }
   };
 
   const handleCancel = () => {
     router.back();
+  };
+
+  const handleRestorePurchases = async () => {
+    setIsProcessing(true);
+    setPurchaseError(null);
+    
+    try {
+      console.log('Restoring RevenueCat purchases...');
+      
+      // Restore purchases through RevenueCat
+      const customerInfo = await Purchases.restorePurchases();
+      
+      console.log('Restore result:', {
+        originalAppUserId: customerInfo.originalAppUserId,
+        entitlements: Object.keys(customerInfo.entitlements.active || {})
+      });
+      
+      // Check if user has Pro entitlement after restore
+      const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
+      const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
+      const hasProEntitlement = customerInfo.entitlements.active[entitlementIdentifier]?.isActive;
+      
+      if (hasProEntitlement) {
+        // Update subscription status to premium
+        await updateSettings({ subscriptionStatus: 'premium' });
+        console.log('Restore successful - user upgraded to premium');
+        
+        // Navigate back to the main app
+        if (router.canDismiss()) {
+          router.dismissAll();
+        } else {
+          router.replace('/popular');
+        }
+      } else {
+        console.log('No active subscription found to restore');
+        setPurchaseError('No active purchases found to restore.');
+      }
+      
+    } catch (error: any) {
+      console.error('RevenueCat restore failed:', error);
+      const errorMessage = error?.message || 'Failed to restore purchases. Please try again.';
+      setPurchaseError(errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -135,30 +252,41 @@ export default function PurchaseScreen() {
             </View>
           </View>
 
-          {/* Mock RevenueCat Purchase Section */}
+          {/* Purchase Error */}
+          {purchaseError && (
+            <View style={{
+              backgroundColor: '#3d1a1a',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: '#664444',
+            }}>
+              <Text style={{ fontSize: 14, color: '#ff6666', textAlign: 'center' }}>
+                {purchaseError}
+              </Text>
+            </View>
+          )}
+
+          {/* RevenueCat Purchase Section */}
           <View style={{
-            backgroundColor: '#0d1117',
+            backgroundColor: '#1a1a1a',
             borderRadius: 12,
             padding: 20,
-            marginBottom: 24,
+            marginBottom: 20,
             borderWidth: 1,
-            borderColor: '#30363d',
+            borderColor: '#333333',
           }}>
-            <Text style={{ fontSize: 12, color: '#7d8590', marginBottom: 12, textAlign: 'center' }}>
-              MOCK REVENUE CAT PURCHASE SCREEN
-            </Text>
-            <Text style={{ fontSize: 14, color: '#f0f6fc', marginBottom: 16, textAlign: 'center' }}>
-              This is a placeholder for the actual RevenueCat purchase flow
-            </Text>
             
-            {/* Mock Purchase Button */}
+            {/* Purchase Button */}
             <Pressable
               onPress={handlePurchase}
               disabled={isProcessing}
               style={({ pressed }) => ({
-                backgroundColor: isProcessing ? '#666666' : '#238636',
+                backgroundColor: isProcessing ? '#666666' : '#10B981',
                 borderRadius: 8,
                 padding: 16,
+                marginBottom: 12,
                 opacity: pressed ? 0.8 : 1,
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -179,6 +307,23 @@ export default function PurchaseScreen() {
                   </Text>
                 </>
               )}
+            </Pressable>
+
+            {/* Restore Purchases Button */}
+            <Pressable
+              onPress={handleRestorePurchases}
+              disabled={isProcessing}
+              style={({ pressed }) => ({
+                backgroundColor: 'transparent',
+                borderRadius: 8,
+                padding: 12,
+                opacity: pressed ? 0.6 : 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+              })}>
+              <Text style={{ color: '#888888', fontSize: 14 }}>
+                Restore Purchases
+              </Text>
             </Pressable>
           </View>
 

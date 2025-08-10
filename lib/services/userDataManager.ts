@@ -216,27 +216,48 @@ export class UserDataManager {
   }
 
   /**
-   * Upgrade user to Pro (placeholder for RevenueCat integration)
+   * Update subscription status based on RevenueCat entitlements
+   * This method should be called when RevenueCat customer info changes
    */
-  static upgradeToProUser(): void {
+  static updateSubscriptionStatusFromRevenueCat(hasProEntitlement: boolean): void {
     if (!this.currentUser) {
       throw new Error('No current user');
     }
 
     try {
-      // Update local cache with new object reference
-      this.currentUser = {
-        ...this.currentUser,
-        isPro: true,
-        updatedAt: new Date().toISOString()
-      };
+      const newSubscriptionStatus = hasProEntitlement ? 'premium' : 'free';
       
-      UserStorage.saveUserData(this.currentUser);
-      this.notifyListeners();
+      // Only update if status has changed
+      if (this.currentUser.settings.subscriptionStatus !== newSubscriptionStatus) {
+        console.log(`Subscription status changed to: ${newSubscriptionStatus}`);
+        
+        // Update local cache with new object reference
+        this.currentUser = {
+          ...this.currentUser,
+          isPro: hasProEntitlement,
+          settings: {
+            ...this.currentUser.settings,
+            subscriptionStatus: newSubscriptionStatus
+          },
+          updatedAt: new Date().toISOString()
+        };
+        
+        UserStorage.saveUserData(this.currentUser);
+        this.notifyListeners();
+      }
     } catch (error) {
-      console.error('Failed to upgrade user to Pro:', error);
+      console.error('Failed to update subscription status from RevenueCat:', error);
       throw error;
     }
+  }
+
+  /**
+   * Upgrade user to Pro (legacy method for backwards compatibility)
+   * @deprecated Use updateSubscriptionStatusFromRevenueCat instead
+   */
+  static upgradeToProUser(): void {
+    console.warn('upgradeToProUser is deprecated. Use RevenueCat purchase flow instead.');
+    this.updateSubscriptionStatusFromRevenueCat(true);
   }
 
   /**

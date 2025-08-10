@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { UserData, UserContextType, UserSettings, Venue, CocktailIngredientInput } from '../types/user';
 import { UserCocktail } from '../types/cocktail';
 import { UserDataManager } from '../services/userDataManager';
+import { useAppStoreIdentification } from '../hooks/useAppStoreIdentification';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
@@ -13,6 +14,9 @@ export function UserProvider({ children }: UserProviderProps) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // RevenueCat integration
+  const { hasProSubscription, refreshCustomerInfo } = useAppStoreIdentification();
 
   useEffect(() => {
     // Initialize user data manager
@@ -54,10 +58,26 @@ export function UserProvider({ children }: UserProviderProps) {
     return unsubscribe;
   }, []);
 
+  // Sync RevenueCat subscription status with user data
+  useEffect(() => {
+    try {
+      const hasProEntitlement = hasProSubscription();
+      console.log('RevenueCat Pro entitlement status:', hasProEntitlement);
+      UserDataManager.updateSubscriptionStatusFromRevenueCat(hasProEntitlement);
+    } catch (error) {
+      console.error('Failed to sync RevenueCat subscription status:', error);
+    }
+  }, [hasProSubscription]);
+
   const updateSettings = async (settings: Partial<UserSettings>): Promise<void> => {
     try {
       setError(null);
       UserDataManager.updateSettings(settings);
+      
+      // If subscription status changed, refresh RevenueCat customer info
+      if (settings.subscriptionStatus !== undefined) {
+        await refreshCustomerInfo();
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update settings';
       setError(errorMessage);

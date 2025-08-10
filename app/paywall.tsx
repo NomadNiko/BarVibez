@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Pressable, ScrollView, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Text } from '~/components/nativewindui/Text';
 import { useRouter } from 'expo-router';
 import { useUserSettings } from '~/lib/contexts/UserContext';
+import { useAppStoreIdentification } from '~/lib/hooks/useAppStoreIdentification';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 interface SubscriptionOption {
@@ -16,15 +17,28 @@ interface SubscriptionOption {
 }
 
 const subscriptionOptions: SubscriptionOption[] = [
-  { id: 'monthly', title: 'Monthly Premium', price: '$4.99', period: 'monthly' },
-  { id: 'yearly', title: 'Yearly Premium', price: '$24.99', period: 'yearly' },
-  { id: 'forever', title: 'Forever Premium', price: '$34.99', period: 'one-time', highlight: true },
+  { id: 'bv_499_monthly_01', title: 'Monthly Premium', price: '$4.99', period: 'monthly' },
+  { id: 'bv_2499_yearly_01', title: 'Yearly Premium', price: '$24.99', period: 'yearly' },
+  { id: 'us.nomadsoft.barvibez.Lifetime', title: 'Forever Premium', price: '$34.99', period: 'one-time', highlight: true },
 ];
 
 export default function PayWallScreen() {
   const router = useRouter();
   const { settings, updateSettings } = useUserSettings();
+  const { hasProSubscription } = useAppStoreIdentification();
   const insets = useSafeAreaInsets();
+
+  // Redirect premium users away from paywall
+  useEffect(() => {
+    if (hasProSubscription()) {
+      console.log('User already has Pro subscription, redirecting away from paywall');
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/popular');
+      }
+    }
+  }, [hasProSubscription]);
 
   const handleSubscriptionSelect = async (optionId: string) => {
     if (optionId === 'free') {

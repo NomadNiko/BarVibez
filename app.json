@@ -41,6 +41,9 @@
       "icon": "./assets/icon-ios.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.in-app-payments": []
       }
     },
     "android": {
@@ -49,12 +52,17 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "us.nomadsoft.barvibez"
+      "package": "us.nomadsoft.barvibez",
+      "permissions": ["com.android.vending.BILLING"]
     },
     "extra": {
       "router": {},
       "eas": {
         "projectId": "00d16e31-dd24-4e42-813b-0aaea27afd1f"
+      },
+      "revenueCat": {
+        "iosApiKey": "appl_haaWKmZRYbSWNGZvqoXQPdwcRFb",
+        "entitlementIdentifier": "Pro"
       }
     }
   }

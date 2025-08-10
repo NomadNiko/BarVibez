@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, ScrollView, Pressable, Linking, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, ScrollView, Pressable, Linking, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -8,11 +8,72 @@ import { Text } from '~/components/nativewindui/Text';
 import { Container } from '~/components/Container';
 import { useUserSettings, useProStatus, useFavorites } from '~/lib/contexts/UserContext';
 import { APP_CONFIG } from '~/config/app';
+import Purchases from 'react-native-purchases';
+import Constants from 'expo-constants';
 
 export default function UserScreen() {
   const { settings, updateSettings } = useUserSettings();
   const { isPro } = useProStatus();
   const { favorites } = useFavorites();
+  const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
+
+  const handleRestorePurchases = async () => {
+    setIsRestoringPurchases(true);
+    
+    try {
+      console.log('Starting restore purchases...');
+      
+      // This will trigger OS-level sign-in if needed
+      const customerInfo = await Purchases.restorePurchases();
+      
+      console.log('Restore result:', {
+        originalAppUserId: customerInfo.originalAppUserId,
+        entitlements: Object.keys(customerInfo.entitlements.active || {})
+      });
+      
+      // Check if user has Pro entitlement after restore
+      const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
+      const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
+      const hasProEntitlement = customerInfo.entitlements.active[entitlementIdentifier]?.isActive;
+      
+      if (hasProEntitlement) {
+        // Update subscription status to premium
+        await updateSettings({ subscriptionStatus: 'premium' });
+        console.log('Restore successful - user upgraded to premium');
+        
+        Alert.alert(
+          'Restore Successful',
+          'Your Pro subscription has been restored successfully!',
+          [{ text: 'OK' }]
+        );
+      } else {
+        console.log('No active subscription found to restore');
+        Alert.alert(
+          'No Purchases Found',
+          'No active purchases were found for your Apple ID. If you believe this is an error, please contact support.',
+          [{ text: 'OK' }]
+        );
+      }
+      
+    } catch (error: any) {
+      console.error('RevenueCat restore failed:', error);
+      
+      // Handle user cancellation gracefully
+      if (error?.userCancelled) {
+        console.log('User cancelled the restore');
+        // Don't show error for cancellation
+      } else {
+        const errorMessage = error?.message || 'Failed to restore purchases. Please try again.';
+        Alert.alert(
+          'Restore Failed',
+          errorMessage,
+          [{ text: 'OK' }]
+        );
+      }
+    } finally {
+      setIsRestoringPurchases(false);
+    }
+  };
 
   const handleMeasurementToggle = async () => {
     if (!settings) return;
@@ -108,6 +169,40 @@ export default function UserScreen() {
 
           {/* Actions Section */}
           <View style={{ marginBottom: 30 }}>
+            {/* Restore Purchases Button */}
+            <Pressable
+              onPress={handleRestorePurchases}
+              disabled={isRestoringPurchases}
+              style={{
+                backgroundColor: '#1a1a1a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#333333',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                opacity: isRestoringPurchases ? 0.6 : 1,
+              }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <FontAwesome 
+                  name="refresh" 
+                  size={20} 
+                  color="#10B981" 
+                  style={{ marginRight: 12 }} 
+                />
+                <Text style={{ color: '#ffffff', fontSize: 16 }}>
+                  {isRestoringPurchases ? 'Restoring...' : 'Restore Purchases'}
+                </Text>
+              </View>
+              {isRestoringPurchases ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <FontAwesome name="chevron-right" size={16} color="#666666" />
+              )}
+            </Pressable>
+
             {/* Settings Button */}
             <Pressable
               onPress={handleSettingsPress}

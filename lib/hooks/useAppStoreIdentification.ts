@@ -1,79 +1,180 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Purchases, { CustomerInfo } from 'react-native-purchases';
+import Constants from 'expo-constants';
 
 /**
- * Hook for App Store user identification
- * This is a placeholder implementation that will be replaced with RevenueCat integration
- * 
- * In the future, this will:
- * 1. Connect to RevenueCat to get the App Store user ID
- * 2. Check Pro subscription status
- * 3. Handle subscription changes
+ * Hook for RevenueCat user identification and subscription status
+ * Following RevenueCat's best practices from their example implementation
  */
 export function useAppStoreIdentification() {
-  const [appStoreId, setAppStoreId] = useState<string | null>(null);
-  const [isLoadingIdentification, setIsLoadingIdentification] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [isLoadingIdentification, setIsLoadingIdentification] = useState(true);
   const [identificationError, setIdentificationError] = useState<string | null>(null);
 
   /**
-   * Initialize App Store identification
-   * Currently returns null, but will integrate with RevenueCat
+   * Force refresh customer info from RevenueCat
+   * Call this after purchases or restores to ensure UI updates immediately
    */
-  useEffect(() => {
-    // TODO: Replace with RevenueCat initialization
-    // Example implementation:
-    // 
-    // const initializeRevenueCat = async () => {
-    //   try {
-    //     setIsLoadingIdentification(true);
-    //     await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
-    //     const customerInfo = await Purchases.getCustomerInfo();
-    //     setAppStoreId(customerInfo.originalAppUserId);
-    //   } catch (error) {
-    //     setIdentificationError('Failed to initialize RevenueCat');
-    //   } finally {
-    //     setIsLoadingIdentification(false);
-    //   }
-    // };
-    // 
-    // initializeRevenueCat();
-
-    // For now, just set loading to false
-    setIsLoadingIdentification(false);
+  const refreshCustomerInfo = useCallback(async () => {
+    try {
+      const freshCustomerInfo = await Purchases.getCustomerInfo();
+      setCustomerInfo(freshCustomerInfo);
+      console.log('Customer info refreshed:', {
+        originalAppUserId: freshCustomerInfo.originalAppUserId,
+        entitlements: Object.keys(freshCustomerInfo.entitlements.active || {})
+      });
+      return freshCustomerInfo;
+    } catch (error) {
+      console.error('Failed to refresh customer info:', error);
+      throw error;
+    }
   }, []);
 
   /**
-   * Manually set App Store ID (for testing purposes)
+   * Initialize RevenueCat customer info streaming
+   * Based on the official RevenueCat example UserViewModel pattern
    */
-  const setTestAppStoreId = (id: string) => {
-    setAppStoreId(id);
-    setIdentificationError(null);
-  };
+  useEffect(() => {
+    let isActive = true;
+
+    const initializeCustomerInfo = async () => {
+      try {
+        setIsLoadingIdentification(true);
+        
+        // Get initial customer info
+        const initialCustomerInfo = await Purchases.getCustomerInfo();
+        if (isActive) {
+          setCustomerInfo(initialCustomerInfo);
+          console.log('Initial customer info loaded:', {
+            originalAppUserId: initialCustomerInfo.originalAppUserId,
+            entitlements: Object.keys(initialCustomerInfo.entitlements.active || {})
+          });
+        }
+        
+      } catch (error) {
+        console.error('Failed to get initial customer info:', error);
+        if (isActive) {
+          setIdentificationError('Failed to load subscription status');
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingIdentification(false);
+        }
+      }
+    };
+
+    // Set up customer info streaming (following RevenueCat example)
+    const setupCustomerInfoStream = async () => {
+      try {
+        // Listen to changes in the customerInfo object using customerInfoUpdateListener
+        const listener = Purchases.addCustomerInfoUpdateListener((info) => {
+          if (isActive) {
+            console.log('Customer info updated:', {
+              originalAppUserId: info.originalAppUserId,
+              entitlements: Object.keys(info.entitlements.active || {})
+            });
+            setCustomerInfo(info);
+          }
+        });
+
+        // Store the listener for cleanup
+        return listener;
+      } catch (error) {
+        console.error('Failed to set up customer info stream:', error);
+        if (isActive) {
+          setIdentificationError('Failed to monitor subscription status');
+        }
+        return null;
+      }
+    };
+
+    // Initialize customer info and set up streaming
+    initializeCustomerInfo();
+    let listenerCleanup: (() => void) | null = null;
+    
+    setupCustomerInfoStream().then(cleanup => {
+      listenerCleanup = cleanup;
+    });
+
+    // Cleanup function
+    return () => {
+      isActive = false;
+      if (listenerCleanup) {
+        listenerCleanup();
+      }
+    };
+  }, []);
 
   /**
-   * Clear App Store identification
+   * Get the App Store user ID from RevenueCat
    */
-  const clearAppStoreId = () => {
-    setAppStoreId(null);
-    setIdentificationError(null);
-  };
+  const appStoreId = customerInfo?.originalAppUserId || null;
 
   /**
    * Check if user has Pro subscription
-   * Currently always returns false, will integrate with RevenueCat
+   * Uses the entitlement identifier from app.json config
    */
   const hasProSubscription = (): boolean => {
-    // TODO: Replace with RevenueCat subscription check
-    // Example:
-    // return customerInfo.entitlements.active['pro'] !== undefined;
-    return false;
+    if (!customerInfo) return false;
+    
+    const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
+    const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
+    
+    return customerInfo.entitlements.active[entitlementIdentifier]?.isActive === true;
+  };
+
+  /**
+   * Login user with RevenueCat
+   */
+  const loginUser = async (userId: string): Promise<void> => {
+    try {
+      setIsLoadingIdentification(true);
+      const result = await Purchases.logIn(userId);
+      setCustomerInfo(result.customerInfo);
+      console.log('User logged in:', result.customerInfo.originalAppUserId);
+    } catch (error) {
+      console.error('Failed to login user:', error);
+      setIdentificationError('Failed to login user');
+      throw error;
+    } finally {
+      setIsLoadingIdentification(false);
+    }
+  };
+
+  /**
+   * Logout current user
+   */
+  const logoutUser = async (): Promise<void> => {
+    try {
+      setIsLoadingIdentification(true);
+      const result = await Purchases.logOut();
+      setCustomerInfo(result.customerInfo);
+      console.log('User logged out, new anonymous user:', result.customerInfo.originalAppUserId);
+    } catch (error) {
+      console.error('Failed to logout user:', error);
+      setIdentificationError('Failed to logout user');
+      throw error;
+    } finally {
+      setIsLoadingIdentification(false);
+    }
+  };
+
+  /**
+   * Clear identification error
+   */
+  const clearError = () => {
+    setIdentificationError(null);
   };
 
   return {
+    customerInfo,
     appStoreId,
     isLoadingIdentification,
     identificationError,
     hasProSubscription,
-    setTestAppStoreId, // Remove this when RevenueCat is integrated
-    clearAppStoreId,
+    loginUser,
+    logoutUser,
+    clearError,
+    refreshCustomerInfo,
   };
 }

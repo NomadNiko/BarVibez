@@ -6,10 +6,9 @@ import { Text } from '~/components/nativewindui/Text';
 import { cn } from '~/lib/cn';
 import { Cocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
-import { getGlassImage, getAllGlassImages } from '~/lib/utils/glassImageMap';
+import { getGlassImage } from '~/lib/utils/glassImageMap';
 import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
-import { useEffect } from 'react';
 
 interface CocktailCardProps {
   cocktail: Cocktail;
@@ -43,17 +42,8 @@ export function CocktailCard({ cocktail, className, onPress }: CocktailCardProps
     }
   };
 
-  // Preload glass images for faster loading
-  useEffect(() => {
-    const preloadImages = async () => {
-      const allGlassImages = getAllGlassImages();
-      allGlassImages.forEach((imageSource) => {
-        Image.prefetch(imageSource);
-      });
-    };
-
-    preloadImages();
-  }, []);
+  // Glass images are now preloaded during app initialization
+  // No need to preload them here anymore
 
   return (
     <Pressable

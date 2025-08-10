@@ -14,9 +14,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useColorScheme, useInitialAndroidBarSync } from '~/lib/useColorScheme';
 import { NAV_THEME } from '~/theme';
 import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { cocktailDB } from '~/lib/database/cocktailDB';
 import { UserProvider } from '~/lib/contexts/UserContext';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
+import Constants from 'expo-constants';
+import { ImagePreloader } from '~/lib/utils/imagePreloader';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -81,6 +84,38 @@ export default function RootLayout() {
   
 
   useEffect(() => {
+    const initializeRevenueCat = async () => {
+      try {
+        // Check if already configured to prevent duplicate initialization
+        const isConfigured = await Purchases.isConfigured();
+        if (isConfigured) {
+          console.log('RevenueCat already configured, skipping initialization');
+          return;
+        }
+        
+        // Enable debug logging for development
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+        
+        // Get RevenueCat configuration from app.json
+        const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
+        
+        if (!revenueCatConfig?.iosApiKey) {
+          console.error('RevenueCat iOS API key not found in app.json');
+          return;
+        }
+        
+        // Configure RevenueCat with the iOS API key (same for iOS/Android in this setup)
+        await Purchases.configure({
+          apiKey: revenueCatConfig.iosApiKey,
+        });
+        
+        console.log('RevenueCat initialized successfully');
+        
+      } catch (error) {
+        console.error('Failed to initialize RevenueCat:', error);
+      }
+    };
+
     const initializeDatabase = async () => {
       try {
         await cocktailDB.initialize();
@@ -101,7 +136,32 @@ export default function RootLayout() {
       }
     };
 
-    initializeDatabase();
+    const initializeImages = async () => {
+      try {
+        // Preload all images after database is ready
+        // This ensures images are cached for all cocktails regardless of subscription
+        await ImagePreloader.preloadAllImages();
+        console.log('All images preloaded successfully');
+      } catch (error) {
+        console.error('Failed to preload images:', error);
+        // Don't block app startup if image preloading fails
+      }
+    };
+
+    // Initialize RevenueCat, database, and images
+    const initializeApp = async () => {
+      // Start RevenueCat initialization (doesn't need to block)
+      initializeRevenueCat();
+      
+      // Initialize database first (required for app to function)
+      await initializeDatabase();
+      
+      // Start image preloading in background after database is ready
+      // This runs async so it doesn't block the UI from loading
+      initializeImages();
+    };
+
+    initializeApp();
   }, []);
 
   // Don't render ANYTHING until database is loaded
