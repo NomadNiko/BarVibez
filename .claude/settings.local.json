@@ -26,7 +26,11 @@
       "WebFetch(domain:github.com)",
       "Bash(npm install:*)",
       "Bash(npx expo prebuild:*)",
-      "WebFetch(domain:docs.revenuecat.com)"
+      "WebFetch(domain:docs.revenuecat.com)",
+      "Bash(npx expo-doctor:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "WebFetch(domain:nomadsoft.us)"
     ],
     "deny": []
   }

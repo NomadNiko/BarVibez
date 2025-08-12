@@ -1,11 +1,64 @@
-import { Tabs } from 'expo-router';
-import { Platform, View } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { Platform, View, AppState } from 'react-native';
+import { useEffect, useRef } from 'react';
 // import { HeaderButton } from '../../components/HeaderButton'; // Unused
 import { TabBarIcon } from '../../components/TabBarIcon';
+import { SubscriptionValidator } from '~/lib/services/subscriptionValidator';
+import { AppInitializationManager } from '~/lib/utils/appInitialization';
 
 export default function TabLayout() {
   // Force dark mode for bartending app
   // const colorScheme = 'dark'; // Unused
+  const router = useRouter();
+  const appState = useRef(AppState.currentState);
+  const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    // Only validate subscription when app resumes from background
+    // Initial app launch flow is handled by index.tsx -> disclaimer -> paywall
+    const validateSubscription = async (isAppResuming: boolean = false) => {
+      if (isAppResuming) {
+        // Small delay to ensure RevenueCat is fully initialized
+        setTimeout(async () => {
+          await SubscriptionValidator.validateAndHandlePaywall(router, isAppResuming);
+        }, 1000);
+      }
+    };
+
+    // Mark as initialized but don't run initial validation
+    // The app launch flow is handled elsewhere (index.tsx)
+    if (!hasInitialized.current && !AppInitializationManager.hasValidatedSubscription()) {
+      hasInitialized.current = true;
+      AppInitializationManager.markSubscriptionValidated();
+      console.log('[TabLayout] Cold start - app launch flow handled by index.tsx');
+    }
+
+    // Re-validate when app comes back from background
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      // Only trigger on actual background->foreground transitions
+      // Skip if this is the initial app state setup or if we're navigating between screens
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active' &&
+        hasInitialized.current // Ensure we've already done initial setup
+      ) {
+        console.log('[TabLayout] App resumed from background - re-validating subscription');
+        // Small delay to avoid interference with any ongoing navigation
+        setTimeout(() => {
+          validateSubscription(true);
+        }, 2000); // Increased delay to avoid navigation conflicts
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription?.remove();
+      // Reset initialization flag when component unmounts (useful for development hot reload)
+      if (hasInitialized.current) {
+        AppInitializationManager.reset();
+      }
+    };
+  }, []); // Empty dependency array - only run once
 
   return (
     <>

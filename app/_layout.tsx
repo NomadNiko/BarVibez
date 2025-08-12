@@ -13,13 +13,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useColorScheme, useInitialAndroidBarSync } from '~/lib/useColorScheme';
 import { NAV_THEME } from '~/theme';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { cocktailDB } from '~/lib/database/cocktailDB';
 import { UserProvider } from '~/lib/contexts/UserContext';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import { ImagePreloader } from '~/lib/utils/imagePreloader';
+import { SubscriptionValidator } from '~/lib/services/subscriptionValidator';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -81,9 +82,15 @@ export default function RootLayout() {
   const isDarkColorScheme = true;
   const [isDbInitialized, setIsDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  const initializationStarted = useRef(false);
   
 
   useEffect(() => {
+    // Prevent multiple initialization calls
+    if (initializationStarted.current) {
+      return;
+    }
+    initializationStarted.current = true;
     const initializeRevenueCat = async () => {
       try {
         // Check if already configured to prevent duplicate initialization
@@ -110,6 +117,9 @@ export default function RootLayout() {
         });
         
         console.log('RevenueCat initialized successfully');
+        
+        // Note: Subscription validation happens in (tabs)/_layout.tsx after app is ready
+        // This ensures we have access to navigation and RevenueCat is fully configured
         
       } catch (error) {
         console.error('Failed to initialize RevenueCat:', error);
@@ -138,12 +148,19 @@ export default function RootLayout() {
 
     const initializeImages = async () => {
       try {
-        // Preload all images after database is ready
+        // First preload critical UI images (premium icon, app icon)
+        // This is fast and ensures paywall displays smoothly
+        await ImagePreloader.preloadCriticalUIImages();
+        
+        // Then preload all cocktail/glass images in background
         // This ensures images are cached for all cocktails regardless of subscription
-        await ImagePreloader.preloadAllImages();
-        console.log('All images preloaded successfully');
+        ImagePreloader.preloadAllImages().then(() => {
+          console.log('All images preloaded successfully');
+        }).catch((error) => {
+          console.error('Failed to preload some images:', error);
+        });
       } catch (error) {
-        console.error('Failed to preload images:', error);
+        console.error('Failed to preload critical images:', error);
         // Don't block app startup if image preloading fails
       }
     };
@@ -156,9 +173,9 @@ export default function RootLayout() {
       // Initialize database first (required for app to function)
       await initializeDatabase();
       
-      // Start image preloading in background after database is ready
-      // This runs async so it doesn't block the UI from loading
-      initializeImages();
+      // Start image preloading after database is ready
+      // Critical UI images are loaded first, then cocktail images in background
+      await initializeImages();
     };
 
     initializeApp();

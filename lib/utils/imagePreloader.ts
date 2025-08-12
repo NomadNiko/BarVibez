@@ -2,6 +2,12 @@ import { Asset } from 'expo-asset';
 import { cocktailImageMap } from './cocktailImageMap';
 import { getAllGlassImages } from './glassImageMap';
 
+// App UI images that should be preloaded
+const appImages = {
+  premiumIcon: require('../../assets/premiumIcon.png'),
+  appIcon: require('../../assets/icon.png'),
+};
+
 /**
  * Preload all cocktail and glass images to ensure they're cached
  * This runs during app initialization regardless of subscription status
@@ -10,6 +16,7 @@ import { getAllGlassImages } from './glassImageMap';
 export class ImagePreloader {
   private static isPreloaded = false;
   private static preloadPromise: Promise<void> | null = null;
+  private static uiImagesPreloaded = false;
 
   /**
    * Preload all images (cocktails and glasses)
@@ -45,10 +52,13 @@ export class ImagePreloader {
       const glassImages = getAllGlassImages().filter(imageSource => 
         imageSource !== null && imageSource !== undefined
       );
+      const uiImages = Object.values(appImages).filter(imageSource => 
+        imageSource !== null && imageSource !== undefined
+      );
       
-      const allImages = [...cocktailImages, ...glassImages];
+      const allImages = [...uiImages, ...cocktailImages, ...glassImages];
       const totalImages = allImages.length;
-      console.log(`Preloading ${totalImages} images using Asset.loadAsync (${cocktailImages.length} cocktails, ${glassImages.length} glasses)...`);
+      console.log(`Preloading ${totalImages} images using Asset.loadAsync (${uiImages.length} UI, ${cocktailImages.length} cocktails, ${glassImages.length} glasses)...`);
 
       // Use Asset.loadAsync for require() resources - this works with expo-image
       const CHUNK_SIZE = 20; // Smaller chunks for memory management
@@ -101,6 +111,31 @@ export class ImagePreloader {
   }
 
   /**
+   * Preload only critical UI images (icons, etc)
+   * This is faster and can be called very early in app initialization
+   */
+  static async preloadCriticalUIImages(): Promise<void> {
+    // Prevent concurrent UI image preloading
+    if (this.uiImagesPreloaded) {
+      return;
+    }
+    
+    try {
+      console.log('Preloading critical UI images...');
+      const uiImages = Object.values(appImages);
+      
+      if (uiImages.length > 0) {
+        await Asset.loadAsync(uiImages);
+        this.uiImagesPreloaded = true;
+        console.log(`✅ Preloaded ${uiImages.length} critical UI images (premium icon, app icon)`);
+      }
+    } catch (error) {
+      console.warn('Failed to preload some UI images:', error);
+      // Don't throw - these are non-critical for app functionality
+    }
+  }
+
+  /**
    * Check if images have been preloaded
    */
   static areImagesPreloaded(): boolean {
@@ -113,5 +148,6 @@ export class ImagePreloader {
   static reset(): void {
     this.isPreloaded = false;
     this.preloadPromise = null;
+    this.uiImagesPreloaded = false;
   }
 }

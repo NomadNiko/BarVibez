@@ -1,25 +1,69 @@
-import React, { useState } from 'react';
-import { View, ScrollView, Pressable, Linking, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, Pressable, Linking, Alert, ActivityIndicator, Switch, Platform, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { Container } from '~/components/Container';
-import { useUserSettings, useProStatus, useFavorites, useUser } from '~/lib/contexts/UserContext';
+import { useUserSettings, useProStatus, useFavorites, useVenues, useUserCocktails } from '~/lib/contexts/UserContext';
 import { APP_CONFIG } from '~/config/app';
 import Purchases from 'react-native-purchases';
 import Constants from 'expo-constants';
+import { useCallback } from 'react';
 
 export default function UserScreen() {
   const { settings, updateSettings } = useUserSettings();
   const { isPro } = useProStatus();
   const { favorites } = useFavorites();
-  const { clearCustomData } = useUser();
+  const { venues } = useVenues();
+  const { getAllUserCocktails } = useUserCocktails();
+  
   
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
-  const [isClearingData, setIsClearingData] = useState(false);
-  const [isResettingRevenueCat, setIsResettingRevenueCat] = useState(false);
+  const [revenueCatUserId, setRevenueCatUserId] = useState<string>('Loading...');
+  
+  // Get RevenueCat User ID and listen for subscription changes
+  useEffect(() => {
+    const getRevenueCatId = async () => {
+      try {
+        const customerInfo = await Purchases.getCustomerInfo();
+        let userId = customerInfo.originalAppUserId;
+        // Remove the $RCAnonymousID: prefix if present
+        if (userId.startsWith('$RCAnonymousID:')) {
+          userId = userId.substring('$RCAnonymousID:'.length);
+        }
+        setRevenueCatUserId(userId);
+      } catch (error) {
+        console.error('Failed to get RevenueCat ID:', error);
+        setRevenueCatUserId('Not available');
+      }
+    };
+    getRevenueCatId();
+    
+    // Set up listener for customer info updates (subscription changes)
+    const listener = Purchases.addCustomerInfoUpdateListener((info) => {
+      console.log('[User Tab] Customer info updated, refreshing UI');
+      // Update RevenueCat ID
+      let userId = info.originalAppUserId;
+      if (userId.startsWith('$RCAnonymousID:')) {
+        userId = userId.substring('$RCAnonymousID:'.length);
+      }
+      setRevenueCatUserId(userId);
+    });
+    
+    return () => {
+      // Clean up listener
+      if (listener) {
+        listener();
+      }
+    };
+  }, []);
+  
+  // Get custom content counts
+  const customCocktails = getAllUserCocktails();
+  const customVenueCount = venues.filter(v => !v.isDefault).length; // Don't count default "My Speakeasy"
+  
 
   const handleRestorePurchases = async () => {
     setIsRestoringPurchases(true);
@@ -102,124 +146,28 @@ export default function UserScreen() {
     router.push('/modal');
   };
 
-  const handleClearData = async () => {
-    Alert.alert(
-      'Clear All Data',
-      `⚠️ WARNING: This will permanently delete all your custom venues and cocktails.\n\nThis cannot be undone!`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All Data',
-          style: 'destructive',
-          onPress: async () => {
-            setIsClearingData(true);
-            try {
-              await clearCustomData();
-              Alert.alert('Data Cleared', 'All custom venues and cocktails have been deleted.');
-            } catch (error: any) {
-              console.error('Clear data failed:', error);
-              Alert.alert('Clear Failed', error?.message || 'Failed to clear data.');
-            } finally {
-              setIsClearingData(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleResetRevenueCat = async () => {
-    Alert.alert(
-      'Reset RevenueCat',
-      `⚠️ WARNING: This will:\n• Log out of current RevenueCat user\n• Reset subscription status to free\n• Allow testing with a new Apple ID\n\nUse this for testing purposes only!`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset RevenueCat',
-          style: 'destructive',
-          onPress: async () => {
-            setIsResettingRevenueCat(true);
-            try {
-              console.log('Resetting RevenueCat user...');
-              
-              // Clear RevenueCat cache and reset everything
-              try {
-                // First try to log out
-                await Purchases.logOut();
-                console.log('RevenueCat logged out successfully');
-              } catch (logoutError: any) {
-                if (logoutError?.message?.includes('anonymous')) {
-                  console.log('User is anonymous, proceeding with reset');
-                } else {
-                  throw logoutError;
-                }
-              }
-              
-              // Clear offerings cache
-              try {
-                await Purchases.invalidateCustomerInfoCache();
-                console.log('Customer info cache invalidated');
-              } catch (cacheError) {
-                console.warn('Could not invalidate cache:', cacheError);
-              }
-              
-              // Create a completely new anonymous user
-              const newAnonymousId = `$RCAnonymousID:${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-              await Purchases.logIn(newAnonymousId);
-              console.log('Created new anonymous RevenueCat user:', newAnonymousId);
-              
-              // Reset subscription status to free
-              await updateSettings({ subscriptionStatus: 'free' });
-              console.log('Subscription status reset to free');
-              
-              Alert.alert(
-                'RevenueCat Reset Complete',
-                'RevenueCat user has been reset and caches cleared.\n\n🔸 To test with a new Apple ID:\n1. Go to Settings > App Store\n2. Sign out of current Apple ID\n3. Sign back in with test Apple ID\n4. Return to app and try purchasing\n\nThis ensures the App Store uses the new Apple ID for purchases.',
-                [{ text: 'OK' }]
-              );
-            } catch (error: any) {
-              console.error('RevenueCat reset failed:', error);
-              Alert.alert('Reset Failed', error?.message || 'Failed to reset RevenueCat.');
-            } finally {
-              setIsResettingRevenueCat(false);
-            }
-          }
-        }
-      ]
-    );
+  const handlePurchasePremium = () => {
+    router.push('/paywall');
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }} edges={['top', 'left', 'right']}>
-      <Container>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ flexGrow: 1, paddingVertical: 20 }}
-          showsVerticalScrollIndicator={false}>
+      <View style={{ paddingHorizontal: 12, flex: 1 }}>
+        <Container>
+          <View
+            style={{ flex: 1, paddingVertical: 20 }}>
           {/* Header */}
-          <View style={{ alignItems: 'center', marginBottom: 40 }}>
+          <View style={{ alignItems: 'center', marginBottom: 20 }}>
             <Image
               source={require('../../assets/icon.png')}
               style={{ width: 80, height: 80, marginBottom: 16 }}
               contentFit="contain"
             />
-            <Text
-              style={{
-                color: '#ffffff',
-                fontSize: 24,
-                textAlign: 'center',
-              }}>
-              {APP_CONFIG.name}
-            </Text>
-            <Text
-              style={{
-                color: '#888888',
-                fontSize: 16,
-                textAlign: 'center',
-                marginTop: 4,
-              }}>
-              Mixology Made Simple
-            </Text>
+            <Image
+              source={require('../../assets/BarVibesLogo3.png')}
+              style={{ width: 200, height: 60 }}
+              contentFit="contain"
+            />
           </View>
 
           {/* User Stats Card */}
@@ -228,16 +176,13 @@ export default function UserScreen() {
               backgroundColor: '#1a1a1a',
               borderRadius: 16,
               padding: 20,
-              marginBottom: 20,
+              marginBottom: 12,
               borderWidth: 1,
               borderColor: '#333333',
             }}>
-            <Text style={{ color: '#ffffff', fontSize: 18, marginBottom: 16 }}>
-              Account Overview
-            </Text>
 
             <View
-              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
               <Text style={{ color: '#888888', fontSize: 14 }}>Status:</Text>
               <Text style={{ color: isPro ? '#00FF88' : '#888888', fontSize: 14 }}>
                 {isPro ? 'Pro User' : 'Free User'}
@@ -245,21 +190,100 @@ export default function UserScreen() {
             </View>
 
             <View
-              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
               <Text style={{ color: '#888888', fontSize: 14 }}>Favorites:</Text>
-              <Text style={{ color: '#ffffff', fontSize: 14 }}>{favorites.length} cocktails</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14 }}>{favorites.length}</Text>
             </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#888888', fontSize: 14 }}>Measurement System:</Text>
-              <Text style={{ color: '#ffffff', fontSize: 14, textTransform: 'uppercase' }}>
-                {settings?.measurements || 'oz'}
-              </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: '#888888', fontSize: 14 }}>Custom Cocktails:</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14 }}>{customCocktails.length}</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: '#888888', fontSize: 14 }}>Custom Venues:</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14 }}>{customVenueCount}</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: '#888888', fontSize: 14 }}>Measurements:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ 
+                  color: settings?.measurements === 'oz' ? '#ffffff' : '#666666', 
+                  fontSize: 14, 
+                  marginRight: 8,
+                }}>
+                  oz
+                </Text>
+                <Switch
+                  value={settings?.measurements === 'ml'}
+                  onValueChange={handleMeasurementToggle}
+                  trackColor={{ false: '#333333', true: '#007AFF' }}
+                  thumbColor={'#ffffff'}
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                />
+                <Text style={{ 
+                  color: settings?.measurements === 'ml' ? '#ffffff' : '#666666', 
+                  fontSize: 14, 
+                  marginLeft: 8,
+                }}>
+                  ml
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ 
+              borderTopWidth: 1, 
+              borderTopColor: '#333333', 
+              paddingTop: 12, 
+              marginTop: 4 
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: '#666666', fontSize: 12 }}>RevenueCat ID:</Text>
+                <Text style={{ 
+                  color: '#666666', 
+                  fontSize: 11, 
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  flex: 1,
+                  textAlign: 'right',
+                  marginLeft: 8,
+                }}>
+                  {revenueCatUserId}
+                </Text>
+              </View>
             </View>
           </View>
 
           {/* Actions Section */}
-          <View style={{ marginBottom: 30 }}>
+          <View style={{ marginBottom: 12 }}>
+            {/* Purchase Premium Button - Only show for free users */}
+            {!isPro && (
+              <Pressable
+                onPress={handlePurchasePremium}
+                style={{
+                  backgroundColor: '#10B981',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <FontAwesome 
+                    name="star" 
+                    size={20} 
+                    color="#ffffff" 
+                    style={{ marginRight: 12 }} 
+                  />
+                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold' }}>
+                    Upgrade to Premium
+                  </Text>
+                </View>
+                <FontAwesome name="chevron-right" size={16} color="#ffffff" />
+              </Pressable>
+            )}
+
             {/* Restore Purchases Button */}
             <Pressable
               onPress={handleRestorePurchases}
@@ -342,90 +366,15 @@ export default function UserScreen() {
             </Pressable>
           </View>
 
-          {/* Data Management Section */}
-          <View style={{ marginBottom: 30 }}>
-            <Text style={{ color: '#ffffff', fontSize: 18, marginBottom: 16 }}>
-              Data Management
-            </Text>
-
-            {/* Clear Data Button */}
-            <Pressable
-              onPress={handleClearData}
-              disabled={isClearingData}
-              style={{
-                backgroundColor: '#1a1a1a',
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: '#333333',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                opacity: isClearingData ? 0.6 : 1,
-              }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <FontAwesome 
-                  name="trash" 
-                  size={20} 
-                  color="#F44336" 
-                  style={{ marginRight: 12 }} 
-                />
-                <Text style={{ color: '#ffffff', fontSize: 16 }}>
-                  {isClearingData ? 'Clearing...' : 'Clear All Data'}
-                </Text>
-              </View>
-              {isClearingData ? (
-                <ActivityIndicator size="small" color="#F44336" />
-              ) : (
-                <FontAwesome name="chevron-right" size={16} color="#666666" />
-              )}
-            </Pressable>
-
-            {/* Reset RevenueCat Button */}
-            <Pressable
-              onPress={handleResetRevenueCat}
-              disabled={isResettingRevenueCat}
-              style={{
-                backgroundColor: '#1a1a1a',
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: '#333333',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                opacity: isResettingRevenueCat ? 0.6 : 1,
-              }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <FontAwesome 
-                  name="sign-out" 
-                  size={20} 
-                  color="#FF9500" 
-                  style={{ marginRight: 12 }} 
-                />
-                <Text style={{ color: '#ffffff', fontSize: 16 }}>
-                  {isResettingRevenueCat ? 'Resetting...' : 'Reset RevenueCat'}
-                </Text>
-              </View>
-              {isResettingRevenueCat ? (
-                <ActivityIndicator size="small" color="#FF9500" />
-              ) : (
-                <FontAwesome name="chevron-right" size={16} color="#666666" />
-              )}
-            </Pressable>
-          </View>
-
           {/* Privacy Footer */}
-          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+          <View style={{ alignItems: 'center', paddingTop: 4, paddingBottom: 8 }}>
             <Pressable onPress={handlePrivacyPress}>
               <Text
                 style={{
                   color: '#007AFF',
                   fontSize: 14,
                   textDecorationLine: 'underline',
-                  lineHeight: 16,
+                  lineHeight: 22,
                 }}>
                 Privacy Policy
               </Text>
@@ -435,7 +384,7 @@ export default function UserScreen() {
                 color: '#666666',
                 fontSize: 12,
                 textAlign: 'center',
-                lineHeight: 14,
+                lineHeight: 20,
               }}>
               {APP_CONFIG.copyright}
             </Text>
@@ -444,13 +393,15 @@ export default function UserScreen() {
                 color: '#666666',
                 fontSize: 12,
                 textAlign: 'center',
-                lineHeight: 14,
+                lineHeight: 18,
               }}>
               Version {APP_CONFIG.version}
             </Text>
           </View>
-        </ScrollView>
+
+        </View>
       </Container>
+      </View>
     </SafeAreaView>
   );
 }

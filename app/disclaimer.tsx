@@ -18,12 +18,12 @@ export default function DisclaimerScreen() {
       // Store that user has accepted the disclaimer
       DisclaimerStorage.setDisclaimerAccepted();
       
-      // Check subscription status and redirect accordingly
+      // After accepting disclaimer, check subscription status
       if (settings?.subscriptionStatus === 'free') {
-        // Redirect to paywall for free users
+        // Free user - show paywall
         router.replace('/paywall');
       } else {
-        // Navigate to main app for premium users
+        // Premium user - go to main app
         router.replace('/popular');
       }
     } catch (error) {

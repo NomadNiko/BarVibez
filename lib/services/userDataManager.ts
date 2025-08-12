@@ -226,25 +226,28 @@ export class UserDataManager {
 
     try {
       const newSubscriptionStatus = hasProEntitlement ? 'premium' : 'free';
+      const currentIsPro = this.currentUser.isPro || false;
+      const previousStatus = this.currentUser.settings.subscriptionStatus;
       
-      // Only update if status has changed
-      if (this.currentUser.settings.subscriptionStatus !== newSubscriptionStatus) {
-        console.log(`Subscription status changed to: ${newSubscriptionStatus}`);
-        
-        // Update local cache with new object reference
-        this.currentUser = {
-          ...this.currentUser,
-          isPro: hasProEntitlement,
-          settings: {
-            ...this.currentUser.settings,
-            subscriptionStatus: newSubscriptionStatus
-          },
-          updatedAt: new Date().toISOString()
-        };
-        
-        UserStorage.saveUserData(this.currentUser);
-        this.notifyListeners();
+      // Only update if there's actually a change to prevent loops
+      if (currentIsPro === hasProEntitlement && previousStatus === newSubscriptionStatus) {
+        return; // No change needed
       }
+      
+      // Update local cache with new object reference
+      this.currentUser = {
+        ...this.currentUser,
+        isPro: hasProEntitlement,
+        settings: {
+          ...this.currentUser.settings,
+          subscriptionStatus: newSubscriptionStatus
+        },
+        updatedAt: new Date().toISOString()
+      };
+      
+      UserStorage.saveUserData(this.currentUser);
+      this.notifyListeners();
+      
     } catch (error) {
       console.error('Failed to update subscription status from RevenueCat:', error);
       throw error;

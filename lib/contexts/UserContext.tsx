@@ -3,6 +3,7 @@ import { UserData, UserContextType, UserSettings, Venue, CocktailIngredientInput
 import { UserCocktail } from '../types/cocktail';
 import { UserDataManager } from '../services/userDataManager';
 import { useAppStoreIdentification } from '../hooks/useAppStoreIdentification';
+import Constants from 'expo-constants';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
@@ -16,7 +17,7 @@ export function UserProvider({ children }: UserProviderProps) {
   const [error, setError] = useState<string | null>(null);
   
   // RevenueCat integration
-  const { hasProSubscription, refreshCustomerInfo } = useAppStoreIdentification();
+  const { hasProSubscription, refreshCustomerInfo, customerInfo } = useAppStoreIdentification();
 
   useEffect(() => {
     // Initialize user data manager
@@ -60,14 +61,19 @@ export function UserProvider({ children }: UserProviderProps) {
 
   // Sync RevenueCat subscription status with user data
   useEffect(() => {
+    if (!customerInfo) return; // Skip if no customer info yet
+    
     try {
-      const hasProEntitlement = hasProSubscription();
-      console.log('RevenueCat Pro entitlement status:', hasProEntitlement);
+      // Get Pro entitlement directly from customerInfo instead of using hasProSubscription()
+      const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
+      const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
+      const hasProEntitlement = customerInfo.entitlements.active[entitlementIdentifier]?.isActive === true;
+      
       UserDataManager.updateSubscriptionStatusFromRevenueCat(hasProEntitlement);
     } catch (error) {
       console.error('Failed to sync RevenueCat subscription status:', error);
     }
-  }, [hasProSubscription]);
+  }, [customerInfo]); // Only customerInfo, not userData to prevent loop
 
   const updateSettings = async (settings: Partial<UserSettings>): Promise<void> => {
     try {
