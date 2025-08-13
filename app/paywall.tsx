@@ -9,6 +9,8 @@ import { useAppStoreIdentification } from '~/lib/hooks/useAppStoreIdentification
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import Purchases from 'react-native-purchases';
 import Constants from 'expo-constants';
+import { Linking } from 'react-native';
+import { APP_CONFIG } from '~/config/app';
 
 interface SubscriptionOption {
   id: string;
@@ -18,10 +20,24 @@ interface SubscriptionOption {
   highlight?: boolean;
 }
 
+const handlePrivacyPress = () => {
+  Linking.openURL(APP_CONFIG.privacyPolicyUrl);
+};
+
+const handleTermsPress = () => {
+  Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/');
+};
+
 const subscriptionOptions: SubscriptionOption[] = [
-  { id: 'bv_499_monthly_01', title: 'Monthly Premium', price: '$4.99', period: 'monthly' },
-  { id: 'bv_2499_yearly_01', title: 'Yearly Premium', price: '$24.99', period: 'yearly' },
-  { id: 'us.nomadsoft.barvibez.Lifetime', title: 'Forever Premium', price: '$34.99', period: 'one-time', highlight: true },
+  { id: 'bv_499_monthly_01', title: 'Monthly Premium Access', price: '$4.99', period: 'monthly' },
+  { id: 'bv_2499_yearly_01', title: 'Yearly Premium Access', price: '$24.99', period: 'yearly' },
+  {
+    id: 'us.nomadsoft.barvibez.Lifetime',
+    title: 'Lifetime Premium Access',
+    price: '$34.99',
+    period: 'one-time',
+    highlight: true,
+  },
 ];
 
 export default function PayWallScreen() {
@@ -48,7 +64,7 @@ export default function PayWallScreen() {
         }, 100);
       }
     };
-    
+
     checkAndRedirect();
   }, [hasProSubscription]);
 
@@ -56,16 +72,17 @@ export default function PayWallScreen() {
     setIsProcessing(true);
     setProcessingOptionId(optionId);
     setPurchaseError(null);
-    
+
     try {
       // Get fresh customer info to check current subscription status
       console.log('Checking current subscription status before purchase...');
       const currentCustomerInfo = await Purchases.getCustomerInfo();
-      
+
       const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
       const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
-      const currentlyHasPro = currentCustomerInfo.entitlements.active[entitlementIdentifier]?.isActive;
-      
+      const currentlyHasPro =
+        currentCustomerInfo.entitlements.active[entitlementIdentifier]?.isActive;
+
       if (currentlyHasPro) {
         console.log('Purchase blocked: User already has Pro subscription');
         Alert.alert(
@@ -77,41 +94,42 @@ export default function PayWallScreen() {
         setProcessingOptionId(null);
         return;
       }
-      
+
       console.log('Starting RevenueCat purchase for product:', optionId);
-      
+
       // Get the product from RevenueCat
       const products = await Purchases.getProducts([optionId]);
-      const product = products.find(p => p.identifier === optionId);
-      
+      const product = products.find((p) => p.identifier === optionId);
+
       if (!product) {
         throw new Error(`Product not found: ${optionId}`);
       }
-      
+
       console.log('Found product:', product.identifier, product.title);
-      
+
       // Make the purchase through RevenueCat
       const purchaseResult = await Purchases.purchaseStoreProduct(product);
-      
+
       console.log('Purchase result:', {
         productIdentifier: purchaseResult.productIdentifier,
         customerInfo: purchaseResult.customerInfo?.originalAppUserId,
-        entitlements: Object.keys(purchaseResult.customerInfo?.entitlements.active || {})
+        entitlements: Object.keys(purchaseResult.customerInfo?.entitlements.active || {}),
       });
-      
+
       // Check if user has Pro entitlement
-      const hasProEntitlement = purchaseResult.customerInfo?.entitlements.active[entitlementIdentifier]?.isActive;
-      
+      const hasProEntitlement =
+        purchaseResult.customerInfo?.entitlements.active[entitlementIdentifier]?.isActive;
+
       if (hasProEntitlement) {
         console.log('Purchase successful - updating user to premium');
-        
+
         // Use UserDataManager directly to ensure proper data flow
         const { UserDataManager } = await import('~/lib/services/userDataManager');
         UserDataManager.updateSubscriptionStatusFromRevenueCat(hasProEntitlement);
-        
+
         // Also update settings as backup
         await updateSettings({ subscriptionStatus: 'premium' });
-        
+
         // Small delay to ensure all listeners have processed the change
         setTimeout(() => {
           // Navigate back to the main app
@@ -129,10 +147,9 @@ export default function PayWallScreen() {
           [{ text: 'OK' }]
         );
       }
-      
     } catch (error: any) {
       console.error('RevenueCat purchase failed:', error);
-      
+
       // Handle user cancellation gracefully
       if (error?.userCancelled) {
         console.log('User cancelled the purchase');
@@ -150,33 +167,33 @@ export default function PayWallScreen() {
   const handleRestorePurchases = async () => {
     setIsProcessing(true);
     setPurchaseError(null);
-    
+
     try {
       console.log('Restoring RevenueCat purchases...');
-      
+
       // Restore purchases through RevenueCat
       const customerInfo = await Purchases.restorePurchases();
-      
+
       console.log('Restore result:', {
         originalAppUserId: customerInfo.originalAppUserId,
-        entitlements: Object.keys(customerInfo.entitlements.active || {})
+        entitlements: Object.keys(customerInfo.entitlements.active || {}),
       });
-      
+
       // Check if user has Pro entitlement after restore
       const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
       const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
       const hasProEntitlement = customerInfo.entitlements.active[entitlementIdentifier]?.isActive;
-      
+
       if (hasProEntitlement) {
         console.log('Restore successful - updating user to premium');
-        
+
         // Use UserDataManager directly to ensure proper data flow
         const { UserDataManager } = await import('~/lib/services/userDataManager');
         UserDataManager.updateSubscriptionStatusFromRevenueCat(hasProEntitlement);
-        
+
         // Also update settings as backup
         await updateSettings({ subscriptionStatus: 'premium' });
-        
+
         // Small delay to ensure all listeners have processed the change
         setTimeout(() => {
           // Navigate back to the main app
@@ -188,13 +205,10 @@ export default function PayWallScreen() {
         }, 100);
       } else {
         console.log('No active subscription found to restore');
-        Alert.alert(
-          'No Purchases Found',
-          'No active purchases found to restore.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('No Purchases Found', 'No active purchases found to restore.', [
+          { text: 'OK' },
+        ]);
       }
-      
     } catch (error: any) {
       console.error('RevenueCat restore failed:', error);
       const errorMessage = error?.message || 'Failed to restore purchases. Please try again.';
@@ -230,20 +244,11 @@ export default function PayWallScreen() {
           className="flex-1"
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
           showsVerticalScrollIndicator={false}>
-          {/* App Icon */}
-          <View className="mb-4 items-center">
-            <Image
-              source={require('../assets/premiumIcon.png')}
-              style={{ width: 160, height: 160 }}
-              contentFit="contain"
-            />
-          </View>
-
           {/* Logo */}
           <View className="mb-6 items-center">
             <Image
               source={require('../assets/BarVibesLogo3.png')}
-              style={{ width: 200, height: 60 }}
+              style={{ width: 200, height: 90 }}
               contentFit="contain"
             />
           </View>
@@ -302,8 +307,10 @@ export default function PayWallScreen() {
                       {option.period && (
                         <Text className="mt-1 text-sm text-gray-400">
                           {option.period === 'one-time'
-                            ? 'One-time purchase'
-                            : `Billed ${option.period}`}
+                            ? 'One-time purchase - lifetime access'
+                            : option.period === 'monthly'
+                              ? 'One month auto-renewing subscription'
+                              : 'One year auto-renewing subscription'}
                         </Text>
                       )}
                     </View>
@@ -320,12 +327,25 @@ export default function PayWallScreen() {
         </ScrollView>
 
         {/* Continue Free button */}
-        <View className="pb-6">
+        {/* Footer Section */}
+        <View className="pb-4 pt-2">
+          {/* Legal Links */}
+          <View className="my-3 flex-row items-center justify-center">
+            <Pressable onPress={handlePrivacyPress}>
+              <Text className="text-xs text-gray-500 underline">Privacy Policy</Text>
+            </Pressable>
+            <Text className="mx-2 text-xs text-gray-500">|</Text>
+            <Pressable onPress={handleTermsPress}>
+              <Text className="text-xs text-gray-500 underline">Terms of Use</Text>
+            </Pressable>
+          </View>
+
+          {/* Continue Free button */}
           <Pressable
             onPress={() => handleSubscriptionSelect('free')}
             disabled={isProcessing}
             style={({ pressed }) => ({ opacity: pressed || isProcessing ? 0.6 : 1 })}>
-            <Text className="py-2 text-center text-xs text-gray-500">
+            <Text className="text-center text-xs text-gray-500">
               Continue with Free (Limited Access)
             </Text>
           </Pressable>

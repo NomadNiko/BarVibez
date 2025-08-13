@@ -27,54 +27,6 @@ export {
   ErrorBoundary,
 } from 'expo-router';
 
-// Glass image mapping for preloading
-const getGlassImage = (glassType: string) => {
-  const glassName = glassType.toLowerCase().replace(/\s+/g, '').replace(/-/g, '');
-  
-  const glassMap: Record<string, any> = {
-    'cocktailglass': require('../assets/glass/cocktailGlass.jpg'),
-    'martiniglass': require('../assets/glass/martiniGlass.jpg'),
-    'oldfashionedglass': require('../assets/glass/oldFashionedGlass.jpg'),
-    'highballglass': require('../assets/glass/highballGlass.jpg'),
-    'collinsglass': require('../assets/glass/collinsGlass.jpg'),
-    'margaritacoupe': require('../assets/glass/MargaritaCoupetteGlass.jpg'),
-    'margaritacoupetteglass': require('../assets/glass/MargaritaCoupetteGlass.jpg'),
-    'margaritacoupette': require('../assets/glass/MargaritaCoupetteGlass.jpg'),
-    'margaritalgass': require('../assets/glass/margaritaGlass.jpg'),
-    'champagneflute': require('../assets/glass/champagneFlute.jpg'),
-    'wineglass': require('../assets/glass/wineGlass.jpg'),
-    'whitwineglass': require('../assets/glass/whiteWineGlass.jpg'),
-    'brandysnifter': require('../assets/glass/brandySnifter.jpg'),
-    'shotglass': require('../assets/glass/shotGlass.jpg'),
-    'beerglass': require('../assets/glass/beerGlass.jpg'),
-    'beermug': require('../assets/glass/beerMug.jpg'),
-    'pilsner': require('../assets/glass/beerPilsner.jpg'),
-    'hurricaneglass': require('../assets/glass/hurricanGlass.jpg'),
-    'coupglass': require('../assets/glass/coupGlass.jpg'),
-    'nickandnoraglass': require('../assets/glass/nickAndNoraGlass.jpg'),
-    'cordial': require('../assets/glass/cordialGlass.jpg'),
-    'cordialglass': require('../assets/glass/cordialGlass.jpg'),
-    'irishcoffeecup': require('../assets/glass/irishCoffeeCup.jpg'),
-    'coffeemug': require('../assets/glass/coffeeMug.jpg'),
-    'coppermug': require('../assets/glass/copperMug.jpg'),
-    'jar': require('../assets/glass/jar.jpg'),
-    'masonjar': require('../assets/glass/masonJar.jpg'),
-    'parfaitglass': require('../assets/glass/parfaitGlass.jpg'),
-    'pintglass': require('../assets/glass/pintGlass.jpg'),
-    'pitcher': require('../assets/glass/pitcher.jpg'),
-    'poussecafeglass': require('../assets/glass/pousseCafeGlass.jpg'),
-    'punchbowl': require('../assets/glass/punchBowl.jpg'),
-    'whiskyglass': require('../assets/glass/whiskeyGlass.jpg'),
-    'whiskeyglass': require('../assets/glass/whiskeyGlass.jpg'),
-    'whiskeysour': require('../assets/glass/whiskeySourGlass.jpg'),
-    'whiskysourglass': require('../assets/glass/whiskeySourGlass.jpg'),
-    'balloonglass': require('../assets/glass/balloonGlass.jpg'),
-  };
-  
-  return glassMap[glassName] || require('../assets/glass/cocktailGlass.jpg');
-};
-
-
 export default function RootLayout() {
   useInitialAndroidBarSync();
   // Force dark mode for bartending app
@@ -83,7 +35,7 @@ export default function RootLayout() {
   const [isDbInitialized, setIsDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const initializationStarted = useRef(false);
-  
+  const revenueCatListener = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     // Prevent multiple initialization calls
@@ -91,6 +43,7 @@ export default function RootLayout() {
       return;
     }
     initializationStarted.current = true;
+
     const initializeRevenueCat = async () => {
       try {
         // Check if already configured to prevent duplicate initialization
@@ -99,28 +52,60 @@ export default function RootLayout() {
           console.log('RevenueCat already configured, skipping initialization');
           return;
         }
-        
-        // Enable debug logging for development
-        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-        
+
+        // Set log level to ERROR only to reduce spam
+        Purchases.setLogLevel(LOG_LEVEL.ERROR);
+
         // Get RevenueCat configuration from app.json
         const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;
-        
+
         if (!revenueCatConfig?.iosApiKey) {
           console.error('RevenueCat iOS API key not found in app.json');
           return;
         }
-        
-        // Configure RevenueCat with the iOS API key (same for iOS/Android in this setup)
+
+        // Configure RevenueCat with the iOS API key
         await Purchases.configure({
           apiKey: revenueCatConfig.iosApiKey,
         });
-        
+
         console.log('RevenueCat initialized successfully');
-        
-        // Note: Subscription validation happens in (tabs)/_layout.tsx after app is ready
-        // This ensures we have access to navigation and RevenueCat is fully configured
-        
+
+        // Set up the customer info listener ONCE here
+        const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
+        let previousProStatus: boolean | null = null;
+
+        const listener = Purchases.addCustomerInfoUpdateListener((customerInfo) => {
+          const hasProEntitlement =
+            customerInfo.entitlements.active[entitlementIdentifier]?.isActive || false;
+
+          // Only log and update when the status actually changes
+          if (previousProStatus !== hasProEntitlement) {
+            console.log('Subscription status changed:', hasProEntitlement ? 'Active' : 'Inactive');
+
+            // Update via UserDataManager if available
+            const updateSubscriptionStatus = async () => {
+              try {
+                const { UserDataManager } = await import('~/lib/services/userDataManager');
+                UserDataManager.updateSubscriptionStatusFromRevenueCat(hasProEntitlement);
+              } catch (error) {
+                console.error('Error updating subscription status:', error);
+              }
+            };
+
+            updateSubscriptionStatus();
+            previousProStatus = hasProEntitlement;
+          }
+        });
+
+        // Store the listener cleanup function
+        revenueCatListener.current = () => {
+          try {
+            Purchases.removeCustomerInfoUpdateListener(listener);
+          } catch (error) {
+            console.error('Error removing RevenueCat listener:', error);
+          }
+        };
       } catch (error) {
         console.error('Failed to initialize RevenueCat:', error);
       }
@@ -134,12 +119,11 @@ export default function RootLayout() {
         if (cocktailCount === 0) {
           await cocktailDB.forceRefreshFromJSON();
         }
-        
+
         // Force refresh to load updated JSON with local image names
         await cocktailDB.forceRefreshFromJSON();
 
         setIsDbInitialized(true);
-
       } catch (error) {
         console.error('Failed to initialize database:', error);
         setDbError(error instanceof Error ? error.message : 'Failed to initialize database');
@@ -151,14 +135,16 @@ export default function RootLayout() {
         // First preload critical UI images (premium icon, app icon)
         // This is fast and ensures paywall displays smoothly
         await ImagePreloader.preloadCriticalUIImages();
-        
+
         // Then preload all cocktail/glass images in background
         // This ensures images are cached for all cocktails regardless of subscription
-        ImagePreloader.preloadAllImages().then(() => {
-          console.log('All images preloaded successfully');
-        }).catch((error) => {
-          console.error('Failed to preload some images:', error);
-        });
+        ImagePreloader.preloadAllImages()
+          .then(() => {
+            console.log('All images preloaded successfully');
+          })
+          .catch((error) => {
+            console.error('Failed to preload some images:', error);
+          });
       } catch (error) {
         console.error('Failed to preload critical images:', error);
         // Don't block app startup if image preloading fails
@@ -168,18 +154,26 @@ export default function RootLayout() {
     // Initialize RevenueCat, database, and images
     const initializeApp = async () => {
       // Start RevenueCat initialization (doesn't need to block)
-      initializeRevenueCat();
-      
+      await initializeRevenueCat();
+
       // Initialize database first (required for app to function)
       await initializeDatabase();
-      
+
       // Start image preloading after database is ready
       // Critical UI images are loaded first, then cocktail images in background
       await initializeImages();
     };
 
     initializeApp();
-  }, []);
+
+    // Cleanup function
+    return () => {
+      if (revenueCatListener.current) {
+        revenueCatListener.current();
+        revenueCatListener.current = null;
+      }
+    };
+  }, []); // Empty dependency array - this should only run once
 
   // Don't render ANYTHING until database is loaded
   if (!isDbInitialized) {
@@ -210,10 +204,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar
-        key="root-status-bar-light"
-        style="light"
-      />
+      <StatusBar key="root-status-bar-light" style="light" />
       {/* WRAP YOUR APP WITH ANY ADDITIONAL PROVIDERS HERE */}
       <UserProvider>
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000000' }}>
