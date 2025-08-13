@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Alert } from 'react-native';
+import { View, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -18,13 +18,19 @@ export default function DisclaimerScreen() {
       // Store that user has accepted the disclaimer
       DisclaimerStorage.setDisclaimerAccepted();
       
-      // After accepting disclaimer, check subscription status
-      if (settings?.subscriptionStatus === 'free') {
-        // Free user - show paywall
-        router.replace('/paywall');
-      } else {
-        // Premium user - go to main app
+      // Android users bypass paywall for now
+      if (Platform.OS === 'android') {
+        // Android users get instant Free access
         router.replace('/popular');
+      } else {
+        // iOS users go through normal paywall flow
+        if (settings?.subscriptionStatus === 'free') {
+          // Free user - show paywall
+          router.replace('/paywall');
+        } else {
+          // Premium user - go to main app
+          router.replace('/popular');
+        }
       }
     } catch (error) {
       console.error('Failed to save disclaimer acceptance:', error);

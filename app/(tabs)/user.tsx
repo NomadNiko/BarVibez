@@ -155,12 +155,12 @@ export default function UserScreen() {
       <View style={{ paddingHorizontal: 12, flex: 1 }}>
         <Container>
           <View
-            style={{ flex: 1, paddingVertical: 20 }}>
+            style={{ flex: 1, paddingVertical: Platform.OS === 'android' ? 10 : 20 }}>
           {/* Header */}
-          <View style={{ alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ alignItems: 'center', marginBottom: Platform.OS === 'android' ? 12 : 20 }}>
             <Image
               source={require('../../assets/icon.png')}
-              style={{ width: 80, height: 80, marginBottom: 16 }}
+              style={{ width: 80, height: 80, marginBottom: Platform.OS === 'android' ? 10 : 16 }}
               contentFit="contain"
             />
             <Image
@@ -175,8 +175,8 @@ export default function UserScreen() {
             style={{
               backgroundColor: '#1a1a1a',
               borderRadius: 16,
-              padding: 20,
-              marginBottom: 12,
+              padding: Platform.OS === 'android' ? 16 : 20,
+              marginBottom: Platform.OS === 'android' ? 8 : 12,
               borderWidth: 1,
               borderColor: '#333333',
             }}>

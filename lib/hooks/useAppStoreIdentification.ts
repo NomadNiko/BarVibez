@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Platform } from 'react-native';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 import Constants from 'expo-constants';
 
@@ -115,6 +116,10 @@ export function useAppStoreIdentification() {
    * Uses the entitlement identifier from app.json config
    */
   const hasProSubscription = (): boolean => {
+    // Android users always get Premium
+    if (Platform.OS === 'android') return true;
+    
+    // iOS users check RevenueCat
     if (!customerInfo) return false;
     
     const revenueCatConfig = Constants.expoConfig?.extra?.revenueCat;

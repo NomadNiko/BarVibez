@@ -462,7 +462,7 @@ export default function PopularScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
-      <View style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? 70 : 80, position: 'relative' }}>
+      <View style={{ flex: 1, paddingBottom: Platform.OS === 'android' ? 101 : 80, position: 'relative' }}>
         {/* Category Carousel */}
         <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
           <View className="mb-4 pt-4">

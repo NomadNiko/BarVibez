@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Purchases, { CustomerInfo, PurchasesError } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import { UserDataManager } from './userDataManager';
@@ -21,7 +22,17 @@ export class SubscriptionValidator {
     try {
       console.log('[SubscriptionValidator] Starting subscription validation...');
       
-      // Check if RevenueCat is configured
+      // Android users always have Premium
+      if (Platform.OS === 'android') {
+        console.log('[SubscriptionValidator] Android detected - automatic Premium access');
+        return { 
+          shouldShowPaywall: false, 
+          validationPerformed: true,
+          isOffline: false 
+        };
+      }
+      
+      // Check if RevenueCat is configured (iOS only)
       const isConfigured = await Purchases.isConfigured();
       if (!isConfigured) {
         console.log('[SubscriptionValidator] RevenueCat not configured, skipping validation');

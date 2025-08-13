@@ -69,21 +69,35 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#8E8E93',
         tabBarShowLabel: false,
         tabBarStyle: {
-          paddingTop: 10,
-          paddingBottom: Platform.OS === 'android' ? 10 : 20,
+          paddingTop: Platform.OS === 'android' ? 5 : 10,
+          paddingBottom: Platform.OS === 'android' ? 15 : 20,
           backgroundColor: '#000000',
           borderTopWidth: 0,
-          elevation: 0,
+          elevation: Platform.OS === 'android' ? 10 : 0,
           position: 'absolute',
-          bottom: 0,
+          bottom: Platform.OS === 'android' ? 15 : 0,
           left: 0,
           right: 0,
           height: Platform.OS === 'android' ? 70 : 80,
+          zIndex: Platform.OS === 'android' ? 20 : 1,
         },
         tabBarIconStyle: {
-          marginTop: 0,
-          marginBottom: 0,
+          marginTop: Platform.OS === 'android' ? -9 : 0,
+          marginBottom: Platform.OS === 'android' ? 5 : 0,
         },
+        tabBarButton: Platform.OS === 'android' 
+          ? (props) => {
+              const TouchableComponent = require('react-native').TouchableWithoutFeedback;
+              const View = require('react-native').View;
+              return (
+                <TouchableComponent {...props}>
+                  <View style={props.style}>
+                    {props.children}
+                  </View>
+                </TouchableComponent>
+              );
+            }
+          : undefined,
       }}>
       <Tabs.Screen
         name="popular"
@@ -146,7 +160,7 @@ export default function TabLayout() {
         right: 0,
         height: 100,
         backgroundColor: '#000000',
-        zIndex: -1,
+        zIndex: 10,
       }} />
     )}
     </>

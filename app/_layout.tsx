@@ -93,6 +93,12 @@ export default function RootLayout() {
     initializationStarted.current = true;
     const initializeRevenueCat = async () => {
       try {
+        // Skip RevenueCat entirely for Android users
+        if (Platform.OS === 'android') {
+          console.log('Android detected - skipping RevenueCat initialization (automatic Premium access)');
+          return;
+        }
+        
         // Check if already configured to prevent duplicate initialization
         const isConfigured = await Purchases.isConfigured();
         if (isConfigured) {
@@ -111,12 +117,12 @@ export default function RootLayout() {
           return;
         }
         
-        // Configure RevenueCat with the iOS API key (same for iOS/Android in this setup)
+        // Configure RevenueCat with iOS API key only
         await Purchases.configure({
           apiKey: revenueCatConfig.iosApiKey,
         });
         
-        console.log('RevenueCat initialized successfully');
+        console.log('RevenueCat initialized successfully for iOS');
         
         // Note: Subscription validation happens in (tabs)/_layout.tsx after app is ready
         // This ensures we have access to navigation and RevenueCat is fully configured

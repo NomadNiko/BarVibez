@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { UserData, UserContextType, UserSettings, Venue, CocktailIngredientInput } from '../types/user';
 import { UserCocktail } from '../types/cocktail';
 import { UserDataManager } from '../services/userDataManager';
@@ -61,6 +62,18 @@ export function UserProvider({ children }: UserProviderProps) {
 
   // Sync RevenueCat subscription status with user data
   useEffect(() => {
+    // Android users get automatic Premium access
+    if (Platform.OS === 'android') {
+      try {
+        UserDataManager.updateSubscriptionStatusFromRevenueCat(true);
+        console.log('Android user - granting automatic Premium access');
+      } catch (error) {
+        console.error('Failed to grant Android Premium access:', error);
+      }
+      return;
+    }
+    
+    // iOS users use normal RevenueCat flow
     if (!customerInfo) return; // Skip if no customer info yet
     
     try {
