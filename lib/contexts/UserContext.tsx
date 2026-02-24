@@ -4,6 +4,10 @@ import { UserCocktail } from '../types/cocktail';
 import { UserDataManager } from '../services/userDataManager';
 import { useAppStoreIdentification } from '../hooks/useAppStoreIdentification';
 import Constants from 'expo-constants';
+import { DataExportService } from '../services/dataExportService';
+import { DataImportService } from '../services/dataImportService';
+import { BarVibezExport, ImportResult } from '../types/export';
+import { UserStorage } from '../utils/storage';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
@@ -319,6 +323,90 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
+  // ── Export / Import ────────────────────────────────────────────────────────
+
+  const getExportPreview = () => {
+    const current = UserDataManager.getCurrentUser();
+    if (!current) return null;
+    const cocktails = UserDataManager.getAllUserCocktails();
+    const nonDefaultVenues = (current.venues || []).filter(v => !v.isDefault);
+    const estimatedFileSize = Math.ceil(
+      (JSON.stringify({ favorites: current.favorites, venues: nonDefaultVenues, cocktails }).length *
+        1.1) /
+        1024
+    );
+    return {
+      venueCount: nonDefaultVenues.length,
+      cocktailCount: cocktails.length,
+      favoriteCount: current.favorites.length,
+      estimatedFileSize,
+    };
+  };
+
+  const exportUserData = async (): Promise<string> => {
+    try {
+      setError(null);
+      const current = UserDataManager.getCurrentUser();
+      if (!current) throw new Error('No user data to export');
+      const allCocktails = UserDataManager.getAllUserCocktails();
+      const exportData = DataExportService.buildExportData(current, allCocktails);
+      const fileUri = await DataExportService.exportToFile(exportData);
+      return fileUri;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to export data';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const shareExportFile = async (fileUri: string): Promise<void> => {
+    try {
+      setError(null);
+      await DataExportService.shareExportFile(fileUri);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to share export file';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const importDataFromFile = async (): Promise<BarVibezExport | null> => {
+    try {
+      setError(null);
+      return await DataImportService.pickImportFile();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to import file';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const applyImportedData = async (importData: BarVibezExport): Promise<ImportResult> => {
+    try {
+      setError(null);
+      const current = UserDataManager.getCurrentUser();
+      if (!current) throw new Error('No current user');
+      const existingCocktails = UserDataManager.getAllUserCocktails();
+
+      const { updatedUserData, result } = DataImportService.applyImport(
+        importData,
+        current,
+        existingCocktails
+      );
+
+      // Persist the updated user data (cocktails were already written to MMKV inside applyImport)
+      UserStorage.saveUserData(updatedUserData);
+      // Force the manager cache and notify listeners
+      UserDataManager.forceUpdateUserData(updatedUserData);
+
+      return result;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to apply imported data';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const contextValue: UserContextType = {
     userData,
     isLoading,
@@ -345,6 +433,11 @@ export function UserProvider({ children }: UserProviderProps) {
     signOut,
     upgradeToProUser,
     clearCustomData,
+    exportUserData,
+    shareExportFile,
+    getExportPreview,
+    importDataFromFile,
+    applyImportedData,
   };
 
   return (

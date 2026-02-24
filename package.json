@@ -1,6 +1,6 @@
 {
   "name": "barvibez",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start --dev-client",
@@ -36,6 +36,7 @@
     "expo-constants": "~17.1.4",
     "expo-dev-client": "~5.2.4",
     "expo-dev-launcher": "^5.0.17",
+    "expo-document-picker": "^14.0.8",
     "expo-file-system": "~18.1.11",
     "expo-font": "~13.3.2",
     "expo-image": "~2.4.0",
@@ -44,6 +45,7 @@
     "expo-media-library": "~17.1.7",
     "expo-navigation-bar": "~4.2.7",
     "expo-router": "~5.1.4",
+    "expo-sharing": "^14.0.8",
     "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~2.2.3",
     "expo-store-review": "~8.1.5",

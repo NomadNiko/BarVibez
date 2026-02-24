@@ -91,9 +91,9 @@ export interface UserContextType {
   // Data export/import
   exportUserData: () => Promise<string>;
   shareExportFile: (fileUri: string) => Promise<void>;
-  getExportPreview: () => { venueCount: number; cocktailCount: number; estimatedFileSize: number } | null;
-  importDataFromFile: () => Promise<any | null>; // BarVibezExport
-  applyImportedData: (importData: any, options: any) => Promise<any>; // ImportOptions, ImportResult
+  getExportPreview: () => { venueCount: number; cocktailCount: number; favoriteCount: number; estimatedFileSize: number } | null;
+  importDataFromFile: () => Promise<any | null>;
+  applyImportedData: (importData: any) => Promise<any>;
   clearCustomData: () => Promise<void>;
 }
 

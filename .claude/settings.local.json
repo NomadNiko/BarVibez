@@ -30,7 +30,10 @@
       "Bash(npx expo-doctor:*)",
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
-      "WebFetch(domain:nomadsoft.us)"
+      "WebFetch(domain:nomadsoft.us)",
+      "Bash(npm uninstall:*)",
+      "Bash(node -e:*)",
+      "WebFetch(domain:docs.expo.dev)"
     ],
     "deny": []
   }
