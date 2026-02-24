@@ -7,11 +7,13 @@ import { Image } from 'expo-image';
 import { Text } from '~/components/nativewindui/Text';
 import { Button } from '~/components/nativewindui/Button';
 import { BackButton } from '~/components/BackButton';
-import { 
-  useVenues, 
+import { AddCocktailModal } from '~/components/AddCocktailModal';
+import {
+  useVenues,
   useFavorites,
   useUserSettings,
-  useUserCocktails 
+  useUserCocktails,
+  useUser
 } from '~/lib/contexts/UserContext';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Venue } from '~/lib/types/user';
@@ -45,9 +47,13 @@ export default function VenueDetailScreen() {
   const { favorites, isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { settings } = useUserSettings();
   const { cocktails, getIngredients, getIngredientsSortedByCocktailCount } = useCocktails();
-  const { getAllUserCocktails } = useUserCocktails();
-  
+  const { getAllUserCocktails, deleteUserCocktail } = useUserCocktails();
+  const { exportVenue, exportUserCocktail } = useUser();
+
   const [activeTab, setActiveTab] = useState<TabType>('cocktails');
+  const [isExporting, setIsExporting] = useState(false);
+  const [editingCocktail, setEditingCocktail] = useState<UserCocktail | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
@@ -286,6 +292,56 @@ export default function VenueDetailScreen() {
     }
   };
 
+  const handleExportVenue = async () => {
+    if (!venue || isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportVenue(venue.id);
+    } catch (error: any) {
+      if (!error?.message?.includes('cancelled') && !error?.message?.includes('dismissed')) {
+        Alert.alert('Export Failed', error?.message || 'Failed to export venue.');
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCocktail = async (cocktailId: string) => {
+    try {
+      await exportUserCocktail(cocktailId);
+    } catch (error: any) {
+      if (!error?.message?.includes('cancelled') && !error?.message?.includes('dismissed')) {
+        Alert.alert('Export Failed', error?.message || 'Failed to export cocktail.');
+      }
+    }
+  };
+
+  const handleEditCocktail = (cocktail: UserCocktail) => {
+    setEditingCocktail(cocktail);
+    setShowEditModal(true);
+  };
+
+  const handleDeleteCocktail = (cocktail: UserCocktail) => {
+    Alert.alert(
+      'Delete Cocktail',
+      `Are you sure you want to delete "${cocktail.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteUserCocktail(cocktail.id);
+            } catch {
+              Alert.alert('Error', 'Failed to delete cocktail');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const cocktailHasMissingIngredients = (cocktail: Cocktail): boolean => {
     if (!venue) return false;
     
@@ -320,6 +376,22 @@ export default function VenueDetailScreen() {
               </Text>
             )}
           </View>
+          {!venue.isDefault && (
+            <Pressable
+              onPress={handleExportVenue}
+              disabled={isExporting}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: 20,
+                width: 40,
+                height: 40,
+                justifyContent: 'center',
+                alignItems: 'center',
+                opacity: isExporting ? 0.5 : 1,
+              }}>
+              <FontAwesome name="download" size={18} color="#9CA3AF" />
+            </Pressable>
+          )}
         </View>
 
         {/* Tabs */}
@@ -414,8 +486,9 @@ export default function VenueDetailScreen() {
               </View>
 
               {venueCocktails.map((cocktail) => (
-                <View
+                <Pressable
                   key={cocktail.id}
+                  onPress={() => handlePreviewCocktail(cocktail)}
                   style={{
                     backgroundColor: '#1a1a1a',
                     borderRadius: 8,
@@ -446,7 +519,7 @@ export default function VenueDetailScreen() {
                       {cocktail.isUserCreated ? 'Custom Recipe' : cocktail.category} • {cocktail.glass}
                     </Text>
                   </View>
-                  
+
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     {/* Missing Ingredients Indicator */}
                     {cocktailHasMissingIngredients(cocktail) && (
@@ -454,27 +527,54 @@ export default function VenueDetailScreen() {
                         <FontAwesome name="exclamation" size={16} color="#FF8F00" />
                       </View>
                     )}
-                    
-                    <Pressable
-                      onPress={() => handlePreviewCocktail(cocktail)}
-                      style={{ 
-                        backgroundColor: '#007AFF',
-                        borderRadius: 6,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        minWidth: 45,
-                        alignItems: 'center'
-                      }}>
-                      <FontAwesome name="eye" size={16} color="#ffffff" />
-                    </Pressable>
-                    
-                    <Pressable
-                      onPress={() => handleRemoveCocktail(cocktail.id)}
-                      style={{ padding: 8 }}>
-                      <FontAwesome name="times" size={18} color="#FF6B6B" />
-                    </Pressable>
+
+                    {cocktail.isUserCreated && (
+                      <>
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation(); handleExportCocktail(cocktail.id); }}
+                          style={{
+                            backgroundColor: '#1B2D3A',
+                            borderRadius: 6,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            minWidth: 45,
+                            alignItems: 'center',
+                            borderWidth: 1,
+                            borderColor: '#1D4C6B',
+                          }}>
+                          <FontAwesome name="download" size={16} color="#4A90D9" />
+                        </Pressable>
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation(); handleEditCocktail(cocktail as UserCocktail); }}
+                          style={{
+                            backgroundColor: 'rgba(0, 122, 255, 0.15)',
+                            borderRadius: 6,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            minWidth: 45,
+                            alignItems: 'center',
+                            borderWidth: 1,
+                            borderColor: '#007AFF',
+                          }}>
+                          <FontAwesome name="edit" size={16} color="#007AFF" />
+                        </Pressable>
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation(); handleDeleteCocktail(cocktail as UserCocktail); }}
+                          style={{ padding: 8 }}>
+                          <FontAwesome name="trash-o" size={18} color="#FF6B6B" />
+                        </Pressable>
+                      </>
+                    )}
+
+                    {!cocktail.isUserCreated && (
+                      <Pressable
+                        onPress={(e) => { e.stopPropagation(); handleRemoveCocktail(cocktail.id); }}
+                        style={{ padding: 8 }}>
+                        <FontAwesome name="times" size={18} color="#FF6B6B" />
+                      </Pressable>
+                    )}
                   </View>
-                </View>
+                </Pressable>
               ))}
               
               {venueCocktails.length === 0 && (
@@ -1173,6 +1273,20 @@ export default function VenueDetailScreen() {
           </View>
         )}
       </View>
+
+      {/* Edit Cocktail Modal */}
+      <AddCocktailModal
+        visible={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingCocktail(null);
+        }}
+        onSuccess={() => {
+          setShowEditModal(false);
+          setEditingCocktail(null);
+        }}
+        editCocktail={editingCocktail}
+      />
     </SafeAreaView>
   );
 }

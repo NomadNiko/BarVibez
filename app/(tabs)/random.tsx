@@ -7,7 +7,7 @@ import { Text } from '~/components/nativewindui/Text';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Cocktail } from '~/lib/types/cocktail';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
-import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { useFavorites, useUserSettings, useUser } from '~/lib/contexts/UserContext';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 
 const { width, height } = Dimensions.get('window');
@@ -83,6 +83,7 @@ export default function RandomCocktailScreen() {
   const [randomCocktail, setRandomCocktail] = useState<Cocktail | null>(null);
   const { addFavorite, removeFavorite, isFavorite } = useFavorites();
   const { settings } = useUserSettings();
+  const { shareCocktailRecipe } = useUser();
 
   // Get a random cocktail
   const getRandomCocktail = () => {
@@ -99,6 +100,17 @@ export default function RandomCocktailScreen() {
       getRandomCocktail();
     }
   }, [cocktails, randomCocktail]);
+
+  const handleShareRecipe = async () => {
+    if (!randomCocktail) return;
+    try {
+      await shareCocktailRecipe(randomCocktail);
+    } catch (error: any) {
+      if (!error?.message?.includes('cancelled') && !error?.message?.includes('dismissed')) {
+        console.error('Share failed:', error);
+      }
+    }
+  };
 
   const handleFavoriteToggle = async () => {
     if (!randomCocktail?.id) return;
@@ -171,12 +183,26 @@ export default function RandomCocktailScreen() {
           </Pressable>
         </View>
 
-        <View style={{ 
+        <View style={{
           position: 'absolute',
           top: 10,
           right: 20,
-          zIndex: 1
+          zIndex: 1,
+          flexDirection: 'row',
+          gap: 8,
         }}>
+          <Pressable
+            onPress={handleShareRecipe}
+            style={{
+              backgroundColor: '#333333',
+              borderRadius: 20,
+              width: 40,
+              height: 40,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+            <FontAwesome name="share-alt" size={16} color="#9CA3AF" />
+          </Pressable>
           <Pressable
             onPress={getRandomCocktail}
             style={{

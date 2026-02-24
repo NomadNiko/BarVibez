@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { UserData, UserContextType, UserSettings, Venue, CocktailIngredientInput } from '../types/user';
-import { UserCocktail } from '../types/cocktail';
+import { Cocktail, UserCocktail } from '../types/cocktail';
 import { UserDataManager } from '../services/userDataManager';
 import { useAppStoreIdentification } from '../hooks/useAppStoreIdentification';
 import Constants from 'expo-constants';
@@ -407,6 +407,49 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   };
 
+  const exportUserCocktail = async (cocktailId: string): Promise<void> => {
+    try {
+      setError(null);
+      const cocktail = UserDataManager.getUserCocktail(cocktailId);
+      if (!cocktail) throw new Error('Custom cocktail not found');
+      const fileUri = await DataExportService.exportCocktailToFile(cocktail);
+      await DataExportService.shareExportFile(fileUri);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to export cocktail';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  const exportVenue = async (venueId: string): Promise<void> => {
+    try {
+      setError(null);
+      const current = UserDataManager.getCurrentUser();
+      if (!current) throw new Error('No user data');
+      const venue = current.venues.find(v => v.id === venueId);
+      if (!venue) throw new Error('Venue not found');
+      const allCocktails = UserDataManager.getAllUserCocktails();
+      const fileUri = await DataExportService.exportVenueToFile(venue, current, allCocktails);
+      await DataExportService.shareExportFile(fileUri);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to export venue';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
+  // Accepts a full cocktail object — used by the cocktail detail screen for both regular and custom cocktails.
+  const shareCocktailRecipeObject = async (cocktail: Cocktail | UserCocktail): Promise<void> => {
+    try {
+      setError(null);
+      await DataExportService.shareCocktailRecipe(cocktail);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to share recipe';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const contextValue: UserContextType = {
     userData,
     isLoading,
@@ -438,6 +481,9 @@ export function UserProvider({ children }: UserProviderProps) {
     getExportPreview,
     importDataFromFile,
     applyImportedData,
+    exportUserCocktail,
+    exportVenue,
+    shareCocktailRecipe: shareCocktailRecipeObject,
   };
 
   return (

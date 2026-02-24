@@ -12,7 +12,7 @@ import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Cocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
 import { getGlassImage } from '~/lib/utils/glassImageMap';
-import { useFavorites, useUserSettings } from '~/lib/contexts/UserContext';
+import { useFavorites, useUserSettings, useUser } from '~/lib/contexts/UserContext';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 
 const { width } = Dimensions.get('window');
@@ -23,6 +23,8 @@ export default function CocktailDetailScreen() {
   const [cocktail, setCocktail] = useState<Cocktail | null>(null);
   const { addFavorite, removeFavorite, isFavorite } = useFavorites();
   const { settings } = useUserSettings();
+  const { shareCocktailRecipe } = useUser();
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -33,7 +35,7 @@ export default function CocktailDetailScreen() {
 
   const handleFavoriteToggle = async () => {
     if (!cocktail?.id) return;
-    
+
     try {
       if (isFavorite(cocktail.id)) {
         await removeFavorite(cocktail.id);
@@ -42,6 +44,20 @@ export default function CocktailDetailScreen() {
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to update favorites');
+    }
+  };
+
+  const handleShareRecipe = async () => {
+    if (!cocktail || isSharing) return;
+    setIsSharing(true);
+    try {
+      await shareCocktailRecipe(cocktail);
+    } catch (error: any) {
+      if (!error?.message?.includes('cancelled') && !error?.message?.includes('dismissed')) {
+        Alert.alert('Share Failed', 'Could not share this recipe. Please try again.');
+      }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -84,22 +100,38 @@ export default function CocktailDetailScreen() {
           <View className="px-4 pb-2 pt-4">
             <View className="mb-4 flex-row items-center justify-between">
               <BackButton />
-              <Pressable
-                onPress={handleFavoriteToggle}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: 20,
-                  width: 40,
-                  height: 40,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}>
-                <FontAwesome 
-                  name={isFavorite(cocktail.id) ? 'heart' : 'heart-o'} 
-                  size={20} 
-                  color={isFavorite(cocktail.id) ? '#FF6B6B' : '#9CA3AF'} 
-                />
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Pressable
+                  onPress={handleShareRecipe}
+                  disabled={isSharing}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: 20,
+                    width: 40,
+                    height: 40,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    opacity: isSharing ? 0.5 : 1,
+                  }}>
+                  <FontAwesome name="share-alt" size={18} color="#9CA3AF" />
+                </Pressable>
+                <Pressable
+                  onPress={handleFavoriteToggle}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: 20,
+                    width: 40,
+                    height: 40,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                  <FontAwesome
+                    name={isFavorite(cocktail.id) ? 'heart' : 'heart-o'}
+                    size={20}
+                    color={isFavorite(cocktail.id) ? '#FF6B6B' : '#9CA3AF'}
+                  />
+                </Pressable>
+              </View>
             </View>
           </View>
 

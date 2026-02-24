@@ -95,6 +95,10 @@ export interface UserContextType {
   importDataFromFile: () => Promise<any | null>;
   applyImportedData: (importData: any) => Promise<any>;
   clearCustomData: () => Promise<void>;
+  // Individual exports
+  exportUserCocktail: (cocktailId: string) => Promise<void>;
+  exportVenue: (venueId: string) => Promise<void>;
+  shareCocktailRecipe: (cocktail: any) => Promise<void>;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {

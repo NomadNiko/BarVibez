@@ -19,7 +19,7 @@ import { CocktailCard } from '~/components/CocktailCard';
 import { SearchFilters } from '~/components/SearchFilters';
 import { useCocktails } from '~/lib/hooks/useCocktails';
 import { SearchFilters as SearchFiltersType, Cocktail } from '~/lib/types/cocktail';
-import { useUserSettings } from '~/lib/contexts/UserContext';
+import { useUserSettings, useUser } from '~/lib/contexts/UserContext';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { getCocktailImage } from '~/lib/utils/localImages';
@@ -42,6 +42,7 @@ export default function CocktailsScreen() {
     forceRefresh,
   } = useCocktails();
   const { settings } = useUserSettings();
+  const { shareCocktailRecipe } = useUser();
   const router = useRouter();
 
   const [titleSearchQuery, setTitleSearchQuery] = useState('');
@@ -134,6 +135,16 @@ export default function CocktailsScreen() {
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedCocktail(null);
+  };
+
+  const handleShareRecipe = async (cocktail: Cocktail) => {
+    try {
+      await shareCocktailRecipe(cocktail);
+    } catch (error: any) {
+      if (!error?.message?.includes('cancelled') && !error?.message?.includes('dismissed')) {
+        console.error('Share failed:', error);
+      }
+    }
   };
 
 
@@ -376,7 +387,25 @@ export default function CocktailsScreen() {
             }}
             showsVerticalScrollIndicator={false}>
             
-            {/* Close Button */}
+            {/* Share Button - Top Left */}
+            <Pressable
+              onPress={() => handleShareRecipe(selectedCocktail)}
+              style={{
+                position: 'absolute',
+                top: 12,
+                left: 12,
+                zIndex: 10,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                borderRadius: 18,
+                width: 36,
+                height: 36,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <FontAwesome name="share-alt" size={14} color="#9CA3AF" />
+            </Pressable>
+
+            {/* Close Button - Top Right */}
             <Pressable
               onPress={handleCloseModal}
               style={{

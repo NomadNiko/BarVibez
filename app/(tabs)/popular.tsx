@@ -19,7 +19,7 @@ import { useCocktails } from '~/lib/hooks/useCocktails';
 import { Cocktail, UserCocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
-import { useFavorites, useUserSettings, useUserCocktails } from '~/lib/contexts/UserContext';
+import { useFavorites, useUserSettings, useUserCocktails, useUser } from '~/lib/contexts/UserContext';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -59,6 +59,7 @@ export default function PopularScreen() {
   const { favorites, addFavorite, removeFavorite, isFavorite } = useFavorites();
   const { settings } = useUserSettings();
   const { getAllUserCocktails } = useUserCocktails();
+  const { shareCocktailRecipe } = useUser();
   const flatListRef = useRef<FlatList>(null);
 
   const selectedCategory = CATEGORIES[selectedCategoryIndex];
@@ -427,6 +428,17 @@ export default function PopularScreen() {
     [filteredCocktails.length]
   );
 
+  const handleShareRecipe = async (item: Cocktail | UserCocktail, event: any) => {
+    event.stopPropagation();
+    try {
+      await shareCocktailRecipe(item);
+    } catch (error: any) {
+      if (!error?.message?.includes('cancelled') && !error?.message?.includes('dismissed')) {
+        console.error('Share failed:', error);
+      }
+    }
+  };
+
   const handleFavoriteToggle = async (cocktailId: string, event: any) => {
     event.stopPropagation(); // Prevent navigation when tapping favorite button
 
@@ -452,7 +464,25 @@ export default function PopularScreen() {
       <View
         className="flex-1 rounded-xl border border-border bg-card p-4 shadow-sm"
         style={{ position: 'relative' }}>
-        {/* Favorite Button */}
+        {/* Share Button - Top Left */}
+        <Pressable
+          onPress={(event) => handleShareRecipe(item, event)}
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 10,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            borderRadius: 20,
+            width: 36,
+            height: 36,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+          <FontAwesome name="share-alt" size={14} color="#9CA3AF" />
+        </Pressable>
+
+        {/* Favorite Button - Top Right */}
         <Pressable
           onPress={(event) => handleFavoriteToggle(item.id, event)}
           style={{
