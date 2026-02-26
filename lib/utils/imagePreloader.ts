@@ -84,7 +84,8 @@ export class ImagePreloader {
               await Asset.loadAsync([imageSource]);
               loadedCount++;
             } catch (individualError) {
-              console.warn(`Failed to load individual image:`, individualError?.message || 'unknown error');
+              const msg = individualError instanceof Error ? individualError.message : 'unknown error';
+              console.warn(`Failed to load individual image:`, msg);
             }
           }
         }

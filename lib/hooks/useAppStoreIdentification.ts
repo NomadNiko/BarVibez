@@ -64,10 +64,11 @@ export function useAppStoreIdentification() {
     };
 
     // Set up customer info streaming (following RevenueCat example)
+    let listenerCallback: ((info: CustomerInfo) => void) | null = null;
+
     const setupCustomerInfoStream = async () => {
       try {
-        // Listen to changes in the customerInfo object using customerInfoUpdateListener
-        const listener = Purchases.addCustomerInfoUpdateListener((info) => {
+        listenerCallback = (info: CustomerInfo) => {
           if (isActive) {
             console.log('Customer info updated:', {
               originalAppUserId: info.originalAppUserId,
@@ -75,32 +76,25 @@ export function useAppStoreIdentification() {
             });
             setCustomerInfo(info);
           }
-        });
-
-        // Store the listener for cleanup
-        return listener;
+        };
+        Purchases.addCustomerInfoUpdateListener(listenerCallback);
       } catch (error) {
         console.error('Failed to set up customer info stream:', error);
         if (isActive) {
           setIdentificationError('Failed to monitor subscription status');
         }
-        return null;
       }
     };
 
     // Initialize customer info and set up streaming
     initializeCustomerInfo();
-    let listenerCleanup: (() => void) | null = null;
-    
-    setupCustomerInfoStream().then(cleanup => {
-      listenerCleanup = cleanup;
-    });
+    setupCustomerInfoStream();
 
     // Cleanup function
     return () => {
       isActive = false;
-      if (listenerCleanup) {
-        listenerCleanup();
+      if (listenerCallback) {
+        Purchases.removeCustomerInfoUpdateListener(listenerCallback);
       }
     };
   }, []);
@@ -130,8 +124,9 @@ export function useAppStoreIdentification() {
     try {
       setIsLoadingIdentification(true);
       const result = await Purchases.logIn(userId);
-      setCustomerInfo(result.customerInfo);
-      console.log('User logged in:', result.customerInfo.originalAppUserId);
+      const loggedInInfo = result.customerInfo ?? (result as unknown as CustomerInfo);
+      setCustomerInfo(loggedInInfo);
+      console.log('User logged in:', loggedInInfo.originalAppUserId);
     } catch (error) {
       console.error('Failed to login user:', error);
       setIdentificationError('Failed to login user');
@@ -148,8 +143,9 @@ export function useAppStoreIdentification() {
     try {
       setIsLoadingIdentification(true);
       const result = await Purchases.logOut();
-      setCustomerInfo(result.customerInfo);
-      console.log('User logged out, new anonymous user:', result.customerInfo.originalAppUserId);
+      const loggedOutInfo = (result as any).customerInfo ?? (result as unknown as CustomerInfo);
+      setCustomerInfo(loggedOutInfo);
+      console.log('User logged out, new anonymous user:', loggedOutInfo.originalAppUserId);
     } catch (error) {
       console.error('Failed to logout user:', error);
       setIdentificationError('Failed to logout user');

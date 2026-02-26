@@ -8,11 +8,10 @@ import {
   ActivityIndicator,
   Switch,
   Platform,
-  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
 import { Container } from '~/components/Container';
@@ -26,7 +25,6 @@ import {
 import { APP_CONFIG } from '~/config/app';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 import Constants from 'expo-constants';
-import { useCallback } from 'react';
 
 // Interface for holding structured subscription details
 interface SubscriptionDetails {
@@ -104,15 +102,14 @@ export default function UserScreen() {
     getAndProcessInfo();
 
     // Set up listener for customer info updates (e.g., after a purchase or restore)
-    const listener = Purchases.addCustomerInfoUpdateListener((info) => {
+    const listenerCallback = (info: import('react-native-purchases').CustomerInfo) => {
       console.log('[User Tab] Customer info updated, processing new info...');
       processCustomerInfo(info);
-    });
+    };
+    Purchases.addCustomerInfoUpdateListener(listenerCallback);
 
     return () => {
-      if (listener) {
-        listener();
-      }
+      Purchases.removeCustomerInfoUpdateListener(listenerCallback);
     };
   }, []);
 
@@ -167,7 +164,7 @@ export default function UserScreen() {
     try {
       const newMeasurement = settings.measurements === 'oz' ? 'ml' : 'oz';
       await updateSettings({ measurements: newMeasurement });
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to update measurement setting');
     }
   };
@@ -459,7 +456,6 @@ export default function UserScreen() {
                     marginBottom: 12,
                     borderWidth: 1,
                     borderColor: '#333333',
-                    color: '#fdff94ff',
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-between',

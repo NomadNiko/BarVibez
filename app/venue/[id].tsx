@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, ScrollView, Pressable, Alert, TextInput, FlatList, Dimensions, Modal } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, ScrollView, Pressable, Alert, TextInput, FlatList, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Image } from 'expo-image';
 import { Text } from '~/components/nativewindui/Text';
-import { Button } from '~/components/nativewindui/Button';
 import { BackButton } from '~/components/BackButton';
 import { AddCocktailModal } from '~/components/AddCocktailModal';
 import {
@@ -16,7 +15,6 @@ import {
   useUser
 } from '~/lib/contexts/UserContext';
 import { useCocktails } from '~/lib/hooks/useCocktails';
-import { Venue } from '~/lib/types/user';
 import { Cocktail, UserCocktail } from '~/lib/types/cocktail';
 import { getCocktailImage } from '~/lib/utils/localImages';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
@@ -34,7 +32,6 @@ type DisplayCocktail = (Cocktail | UserCocktail) & {
 
 export default function VenueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const { 
     venues, 
     addIngredientToVenue, 
@@ -46,7 +43,7 @@ export default function VenueDetailScreen() {
   } = useVenues();
   const { favorites, isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { settings } = useUserSettings();
-  const { cocktails, getIngredients, getIngredientsSortedByCocktailCount } = useCocktails();
+  const { cocktails, getIngredientsSortedByCocktailCount } = useCocktails();
   const { getAllUserCocktails, deleteUserCocktail } = useUserCocktails();
   const { exportVenue, exportUserCocktail } = useUser();
 
@@ -62,14 +59,13 @@ export default function VenueDetailScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const venue = venues.find(v => v.id === id);
-  const allIngredients = useMemo(() => getIngredients(), [getIngredients]);
   const ingredientsSortedByCount = useMemo(() => getIngredientsSortedByCocktailCount(), [getIngredientsSortedByCocktailCount]);
 
   // Get cocktails for this venue using the proper utility function
   const venueCocktails = useMemo(() => {
     if (!venue) return [];
     return getVenueAllCocktails(venue.id);
-  }, [venue, getAllUserCocktails, favorites]);
+  }, [venue]);
 
   // Get missing ingredients from venue cocktails
   const missingIngredients = useMemo(() => {
@@ -141,10 +137,10 @@ export default function VenueDetailScreen() {
   }, [venue, cocktails, favorites]);
 
   // Filter items for search
-  const filteredItems = useMemo(() => {
+  const filteredItems = useMemo((): (CombinedCocktail | string)[] => {
     if (activeTab === 'cocktails') {
       // Get all existing cocktail IDs in this venue (regular + custom)
-      const existingIds = new Set();
+      const existingIds = new Set<string>();
       
       if (venue) {
         // Add regular cocktail IDs
@@ -182,7 +178,7 @@ export default function VenueDetailScreen() {
       // Return just the ingredient names, limited to 50 for performance
       return filteredIngredients.slice(0, 50).map(item => item.ingredient);
     }
-  }, [activeTab, searchQuery, cocktails, ingredientsSortedByCount, venue, favorites, getAllUserCocktails]);
+  }, [activeTab, searchQuery, ingredientsSortedByCount, venue, favorites, getAllUserCocktails]);
 
   if (!venue) {
     return (
@@ -243,7 +239,7 @@ export default function VenueDetailScreen() {
                 // Remove regular cocktail or handle default venue
                 await removeCocktailFromVenue(venue.id, cocktailId);
               }
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to remove cocktail');
             }
           },
@@ -258,7 +254,7 @@ export default function VenueDetailScreen() {
       // Don't close modal, don't clear search query - stay focused
       // The ingredient will be automatically removed from the filtered list
       // because it's now in venue.ingredients
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to add ingredient');
     }
   };
@@ -266,7 +262,7 @@ export default function VenueDetailScreen() {
   const handleRemoveIngredient = async (ingredient: string) => {
     try {
       await removeIngredientFromVenue(venue.id, ingredient);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to remove ingredient');
     }
   };
@@ -522,7 +518,7 @@ export default function VenueDetailScreen() {
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     {/* Missing Ingredients Indicator */}
-                    {cocktailHasMissingIngredients(cocktail) && (
+                    {!cocktail.isUserCreated && cocktailHasMissingIngredients(cocktail as Cocktail) && (
                       <View style={{ padding: 8 }}>
                         <FontAwesome name="exclamation" size={16} color="#FF8F00" />
                       </View>
@@ -735,13 +731,13 @@ export default function VenueDetailScreen() {
 
                 {/* Results */}
                 <FlatList
-                  data={filteredItems}
-                  keyExtractor={(item) => 
-                    activeTab === 'cocktails' 
-                      ? (item as CombinedCocktail).id 
-                      : item as string
+                  data={filteredItems as any[]}
+                  keyExtractor={(item: any) =>
+                    activeTab === 'cocktails'
+                      ? (item as CombinedCocktail).id
+                      : (item as string)
                   }
-                  renderItem={({ item }) => {
+                  renderItem={({ item }: { item: any }) => {
                     if (activeTab === 'cocktails') {
                       const cocktail = item as CombinedCocktail;
                       return (

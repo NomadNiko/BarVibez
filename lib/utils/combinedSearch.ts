@@ -46,13 +46,13 @@ export function searchAllCocktails(
       
       return true;
     })
-    .map(cocktail => ({ ...cocktail, isUserCreated: true }));
+    .map(cocktail => ({ ...cocktail, isUserCreated: true }) as CombinedCocktail);
 
   // Get regular cocktails from database
   const regularCocktails = cocktailDB
     .searchCocktails(query, filters)
     .filter(cocktail => !excludeIds.has(cocktail.id))
-    .map(cocktail => ({ ...cocktail, isUserCreated: false }))
+    .map(cocktail => ({ ...cocktail, isUserCreated: false }) as CombinedCocktail)
     .reverse(); // Reverse the order of regular cocktails
 
   // Combine results: user cocktails first, then regular cocktails
@@ -71,21 +71,21 @@ export function getVenueAllCocktails(venueId: string): CombinedCocktail[] {
   // Get user cocktails for this venue
   const userCocktails = UserDataManager.getAllUserCocktails()
     .filter(c => c.venues.includes(venueId))
-    .map(c => ({ ...c, isUserCreated: true }));
-  
+    .map(c => ({ ...c, isUserCreated: true }) as CombinedCocktail);
+
   // For regular cocktails, we need venue data from UserDataManager
   const userData = UserDataManager.getCurrentUser();
   if (!userData) return userCocktails;
-  
+
   const venue = userData.venues.find(v => v.id === venueId);
   if (!venue) return userCocktails;
-  
+
   // Get regular cocktails for this venue
   const cocktailIds = venue.isDefault ? userData.favorites : venue.cocktailIds;
   const regularCocktails = cocktailIds
     .map(id => cocktailDB.getCocktailById(id))
     .filter((c): c is Cocktail => c !== null)
-    .map(c => ({ ...c, isUserCreated: false }));
+    .map(c => ({ ...c, isUserCreated: false }) as CombinedCocktail);
   
   // Combine: user cocktails first
   results.push(...userCocktails);
@@ -131,7 +131,7 @@ export function getSuggestedCocktails(
       const score = matchingIngredients / totalIngredients;
       
       results.push({
-        cocktail: { ...cocktail, isUserCreated: true },
+        cocktail: { ...cocktail, isUserCreated: true } as CombinedCocktail,
         score,
         matchingIngredients
       });
@@ -145,16 +145,16 @@ export function getSuggestedCocktails(
   // Score regular cocktails
   allRegularCocktails.forEach(cocktail => {
     const cocktailIngredients = cocktail.ingredients.map(i => i.name.toLowerCase().trim());
-    const matchingIngredients = cocktailIngredients.filter(ci => 
+    const matchingIngredients = cocktailIngredients.filter(ci =>
       venueIngredientsLower.includes(ci)
     ).length;
-    
+
     if (matchingIngredients > 0) {
       const totalIngredients = cocktail.ingredients.length;
       const score = matchingIngredients / totalIngredients;
-      
+
       results.push({
-        cocktail: { ...cocktail, isUserCreated: false },
+        cocktail: { ...cocktail, isUserCreated: false } as CombinedCocktail,
         score,
         matchingIngredients
       });

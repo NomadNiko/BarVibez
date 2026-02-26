@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable, Dimensions, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -9,8 +9,6 @@ import { Cocktail } from '~/lib/types/cocktail';
 import { getGlassImageNormalized } from '~/lib/utils/glassImageMap';
 import { useFavorites, useUserSettings, useUser } from '~/lib/contexts/UserContext';
 import { MeasurementConverter } from '~/lib/utils/measurementConverter';
-
-const { width, height } = Dimensions.get('window');
 
 // Helper function to parse and sort ingredients by measurement
 const sortIngredients = (ingredients: any[]) => {
@@ -61,7 +59,7 @@ const sortIngredients = (ingredients: any[]) => {
     const bParsed = parseMeasurement(b.measure);
     
     // Sort order: oz > tablespoon > dash > other
-    const unitOrder = { 'oz': 1, 'tablespoon': 2, 'dash': 3, 'other': 4 };
+    const unitOrder: Record<string, number> = { 'oz': 1, 'tablespoon': 2, 'dash': 3, 'other': 4 };
     
     // First sort by unit type
     if (unitOrder[aParsed.unit] !== unitOrder[bParsed.unit]) {
@@ -86,20 +84,20 @@ export default function RandomCocktailScreen() {
   const { shareCocktailRecipe } = useUser();
 
   // Get a random cocktail
-  const getRandomCocktail = () => {
+  const getRandomCocktail = useCallback(() => {
     if (cocktails.length === 0) return;
-    
+
     const randomIndex = Math.floor(Math.random() * cocktails.length);
     const selectedCocktail = cocktails[randomIndex];
     setRandomCocktail(selectedCocktail);
-  };
+  }, [cocktails]);
 
   // Get initial random cocktail when cocktails load
   useEffect(() => {
     if (cocktails.length > 0 && !randomCocktail) {
       getRandomCocktail();
     }
-  }, [cocktails, randomCocktail]);
+  }, [cocktails, randomCocktail, getRandomCocktail]);
 
   const handleShareRecipe = async () => {
     if (!randomCocktail) return;

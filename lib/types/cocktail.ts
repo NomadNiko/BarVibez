@@ -47,6 +47,7 @@ export interface SearchFilters {
   ingredients?: string[];
   tier?: number;
   tags?: string[];
+  hasImage?: boolean;
 }
 
 export interface UserCocktail {

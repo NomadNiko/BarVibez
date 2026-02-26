@@ -157,7 +157,9 @@ export class DataImportService {
         const nameLower = importedCocktail.name.toLowerCase().trim();
         if (existingCocktailNames.has(nameLower)) {
           result.customCocktails.skipped++;
-          cocktailIdMap.set(importedCocktail.id, importedCocktail.id);
+          // Find the actual existing cocktail's ID (may differ from imported ID)
+          const existingMatch = existingCocktails.find(c => c.name.toLowerCase().trim() === nameLower);
+          cocktailIdMap.set(importedCocktail.id, existingMatch ? existingMatch.id : importedCocktail.id);
           continue;
         }
 
@@ -210,18 +212,32 @@ export class DataImportService {
               existingCocktailIdSet.add(cId);
             }
           }
+          // Merge customCocktailIds (remapped through cocktailIdMap)
+          const existingCustomIdSet = new Set(existing.customCocktailIds);
+          for (const cId of importedVenue.customCocktailIds) {
+            const mappedId = cocktailIdMap.get(cId) || cId;
+            if (!existingCustomIdSet.has(mappedId)) {
+              existing.customCocktailIds.push(mappedId);
+              existingCustomIdSet.add(mappedId);
+            }
+          }
           existing.updatedAt = new Date().toISOString();
           result.venues.merged++;
         } else {
           const newVenueId = `venue_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           venueIdMap.set(importedVenue.id, newVenueId);
 
+          // Remap customCocktailIds through cocktailIdMap
+          const remappedCustomIds = importedVenue.customCocktailIds
+            .map(cId => cocktailIdMap.get(cId) || cId)
+            .filter((id, idx, arr) => arr.indexOf(id) === idx); // dedupe
+
           const newVenue: Venue = {
             id: newVenueId,
             name: importedVenue.name,
             ingredients: [...importedVenue.ingredients],
             cocktailIds: [...importedVenue.cocktailIds],
-            customCocktailIds: [],
+            customCocktailIds: remappedCustomIds,
             createdAt: importedVenue.createdAt,
             updatedAt: new Date().toISOString(),
           };
@@ -259,6 +275,41 @@ export class DataImportService {
 
         newCocktail.venues = remappedVenueIds;
         UserStorage.saveUserCocktail(newCocktail);
+      }
+
+      // 5. Update venue refs on skipped (duplicate) cocktails
+      for (const importedCocktail of importData.customCocktails) {
+        const mappedCocktailId = cocktailIdMap.get(importedCocktail.id);
+        if (!mappedCocktailId) continue;
+        // Skip cocktails that were newly created (already handled in step 4)
+        if (newCocktailEntries.some(c => c.id === mappedCocktailId)) continue;
+
+        // This is a skipped/duplicate cocktail — update its venue associations
+        const existingCocktail = UserStorage.getUserCocktail(mappedCocktailId);
+        if (!existingCocktail) continue;
+
+        let venuesChanged = false;
+        for (const originalVenueId of importedCocktail.venues) {
+          const mappedVenueId = venueIdMap.get(originalVenueId);
+          if (mappedVenueId && !existingCocktail.venues.includes(mappedVenueId)) {
+            existingCocktail.venues.push(mappedVenueId);
+            venuesChanged = true;
+          }
+        }
+
+        // Also ensure the cocktail is in the default venue
+        const defaultVenue = updatedUserData.venues.find(v => v.isDefault);
+        if (defaultVenue && !existingCocktail.venues.includes(defaultVenue.id)) {
+          existingCocktail.venues.unshift(defaultVenue.id);
+          venuesChanged = true;
+          if (!defaultVenue.customCocktailIds.includes(mappedCocktailId)) {
+            defaultVenue.customCocktailIds.push(mappedCocktailId);
+          }
+        }
+
+        if (venuesChanged) {
+          UserStorage.saveUserCocktail(existingCocktail);
+        }
       }
 
       result.success = result.errors.length === 0;

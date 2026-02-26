@@ -11,16 +11,15 @@ import { StatusBar } from 'expo-status-bar';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { useColorScheme, useInitialAndroidBarSync } from '~/lib/useColorScheme';
+import { useInitialAndroidBarSync } from '~/lib/useColorScheme';
 import { NAV_THEME } from '~/theme';
 import { useEffect, useState, useRef } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Text } from 'react-native';
 import { cocktailDB } from '~/lib/database/cocktailDB';
 import { UserProvider } from '~/lib/contexts/UserContext';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import Constants from 'expo-constants';
 import { ImagePreloader } from '~/lib/utils/imagePreloader';
-import { SubscriptionValidator } from '~/lib/services/subscriptionValidator';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -31,7 +30,6 @@ export default function RootLayout() {
   useInitialAndroidBarSync();
   // Force dark mode for bartending app
   const colorScheme = 'dark';
-  const isDarkColorScheme = true;
   const [isDbInitialized, setIsDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const initializationStarted = useRef(false);
@@ -75,7 +73,7 @@ export default function RootLayout() {
         const entitlementIdentifier = revenueCatConfig?.entitlementIdentifier || 'Pro';
         let previousProStatus: boolean | null = null;
 
-        const listener = Purchases.addCustomerInfoUpdateListener((customerInfo) => {
+        const listenerCallback = (customerInfo: import('react-native-purchases').CustomerInfo) => {
           const hasProEntitlement =
             customerInfo.entitlements.active[entitlementIdentifier]?.isActive || false;
 
@@ -96,12 +94,14 @@ export default function RootLayout() {
             updateSubscriptionStatus();
             previousProStatus = hasProEntitlement;
           }
-        });
+        };
+
+        Purchases.addCustomerInfoUpdateListener(listenerCallback);
 
         // Store the listener cleanup function
         revenueCatListener.current = () => {
           try {
-            Purchases.removeCustomerInfoUpdateListener(listener);
+            Purchases.removeCustomerInfoUpdateListener(listenerCallback);
           } catch (error) {
             console.error('Error removing RevenueCat listener:', error);
           }
