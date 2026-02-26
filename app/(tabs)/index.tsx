@@ -17,7 +17,7 @@ export default function Index() {
       // User has accepted disclaimer, now check subscription status
       if (settings?.subscriptionStatus === 'free') {
         // Free user - show paywall
-        router.replace('/paywall');
+        router.replace({ pathname: '/paywall', params: { source: 'launch' } });
       } else {
         // Premium user - go to main app
         router.replace('/popular');

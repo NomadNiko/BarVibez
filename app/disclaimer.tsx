@@ -21,7 +21,7 @@ export default function DisclaimerScreen() {
       // After accepting disclaimer, check subscription status
       if (settings?.subscriptionStatus === 'free') {
         // Free user - show paywall
-        router.replace('/paywall');
+        router.replace({ pathname: '/paywall', params: { source: 'launch' } });
       } else {
         // Premium user - go to main app
         router.replace('/popular');

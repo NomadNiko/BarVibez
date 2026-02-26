@@ -4,11 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Text } from '~/components/nativewindui/Text';
-// import { Button } from '~/components/nativewindui/Button'; // Unused
 import { Container } from '~/components/Container';
 import { useVenues, useFavorites, useUserSettings, useUserCocktails } from '~/lib/contexts/UserContext';
 import { Venue } from '~/lib/types/user';
 import { AddCocktailModal } from '~/components/AddCocktailModal';
+import { useAdAccess } from '~/lib/hooks/useAdAccess';
 
 export default function SpeakeasyScreen() {
   const router = useRouter();
@@ -16,9 +16,22 @@ export default function SpeakeasyScreen() {
   const { favorites } = useFavorites();
   const { settings } = useUserSettings();
   const { getAllUserCocktails } = useUserCocktails();
+  const { hasAdAccess, showAdForAccess, getRemainingSeconds, adLoaded, isShowingAd, accessGrantedAt } = useAdAccess();
   const [showNewVenueModal, setShowNewVenueModal] = useState(false);
   const [newVenueName, setNewVenueName] = useState('');
   const [showAddCocktailModal, setShowAddCocktailModal] = useState(false);
+  const [, forceUpdate] = useState(0);
+
+  const isFreeUser = settings?.subscriptionStatus === 'free';
+
+  // Tick every second to update countdown and detect access expiry
+  useEffect(() => {
+    if (!isFreeUser || !hasAdAccess()) return;
+    const interval = setInterval(() => {
+      forceUpdate(n => n + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isFreeUser, accessGrantedAt]);
 
   // Debug log to check venues
   useEffect(() => {
@@ -94,8 +107,8 @@ export default function SpeakeasyScreen() {
     });
   };
 
-  // Check if user is on free plan and show paywall
-  if (settings?.subscriptionStatus === 'free') {
+  // Free user without ad-based access — show ad prompt
+  if (isFreeUser && !hasAdAccess()) {
     return (
       <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
         <View style={{ paddingHorizontal: 12, flex: 1 }}>
@@ -104,11 +117,10 @@ export default function SpeakeasyScreen() {
             <View className="pb-4">
               <Text className="mb-2 text-2xl font-bold text-foreground">Speakeasy</Text>
               <Text className="text-sm text-muted-foreground">
-                Premium feature - Create and manage your venues
+                Watch an ad to access your venues
               </Text>
             </View>
 
-            {/* Premium Feature Explanation */}
             <View style={{
               backgroundColor: '#1a1a1a',
               borderRadius: 16,
@@ -119,51 +131,76 @@ export default function SpeakeasyScreen() {
               alignItems: 'center',
             }}>
               <FontAwesome name="building" size={48} color="#10B981" style={{ marginBottom: 16 }} />
-              <Text style={{ 
-                color: '#ffffff', 
-                fontSize: 20, 
-                fontWeight: 'bold', 
+              <Text style={{
+                color: '#ffffff',
+                fontSize: 20,
+                fontWeight: 'bold',
                 marginBottom: 12,
                 textAlign: 'center'
               }}>
-                Speakeasy Premium
+                Access Speakeasy
               </Text>
-              <Text style={{ 
-                color: '#888888', 
-                fontSize: 14, 
+              <Text style={{
+                color: '#888888',
+                fontSize: 14,
                 textAlign: 'center',
                 lineHeight: 20,
                 marginBottom: 20
               }}>
-                Create custom venues, manage your ingredients, and organize cocktail collections for different bars or events.
+                Watch a short ad to get 10 minutes of full access to your venues, ingredients, and cocktail collections.
               </Text>
-              
+
+              {/* Watch Ad Button */}
               <Pressable
-                onPress={() => router.push('/paywall')}
+                onPress={showAdForAccess}
+                disabled={!adLoaded || isShowingAd}
                 style={{
-                  backgroundColor: '#10B981',
+                  backgroundColor: adLoaded ? '#10B981' : '#555555',
                   borderRadius: 12,
                   paddingHorizontal: 32,
                   paddingVertical: 16,
                   alignItems: 'center',
+                  width: '100%',
+                  marginBottom: 12,
+                  opacity: adLoaded ? 1 : 0.6,
                 }}>
                 <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
+                  {isShowingAd ? 'Showing Ad...' : adLoaded ? 'Watch Ad for Access' : 'Loading Ad...'}
+                </Text>
+              </Pressable>
+
+              {/* Upgrade Option */}
+              <Pressable
+                onPress={() => router.push('/paywall')}
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#10B981',
+                  borderRadius: 12,
+                  paddingHorizontal: 32,
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                  width: '100%',
+                }}>
+                <Text style={{ color: '#10B981', fontSize: 16, fontWeight: '600' }}>
                   Upgrade to Premium
+                </Text>
+                <Text style={{ color: '#888888', fontSize: 12, marginTop: 4 }}>
+                  No ads, unlimited access
                 </Text>
               </Pressable>
             </View>
 
             {/* Feature List */}
             <View style={{ marginTop: 20 }}>
-              <Text style={{ 
-                color: '#ffffff', 
-                fontSize: 16, 
-                fontWeight: '600', 
-                marginBottom: 16 
+              <Text style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: '600',
+                marginBottom: 16
               }}>
                 What you&apos;ll get:
               </Text>
-              
+
               {[
                 'Create unlimited custom venues',
                 'Manage ingredients by location',
@@ -171,10 +208,10 @@ export default function SpeakeasyScreen() {
                 'Track missing ingredients',
                 'Get cocktail suggestions by venue'
               ].map((feature, index) => (
-                <View key={index} style={{ 
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
-                  marginBottom: 12 
+                <View key={index} style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginBottom: 12
                 }}>
                   <FontAwesome name="check" size={16} color="#10B981" style={{ marginRight: 12 }} />
                   <Text style={{ color: '#cccccc', fontSize: 14 }}>
@@ -200,6 +237,26 @@ export default function SpeakeasyScreen() {
             Manage your venues and cocktail collections
           </Text>
         </View>
+
+        {/* Ad access countdown for free users */}
+        {isFreeUser && hasAdAccess() && (
+          <View style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 12,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <Text style={{ color: '#888888', fontSize: 12 }}>
+              Access expires in {Math.floor(getRemainingSeconds() / 60)}:{String(getRemainingSeconds() % 60).padStart(2, '0')}
+            </Text>
+            <Pressable onPress={() => router.push('/paywall')}>
+              <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '600' }}>Go Premium</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Add New Venue Button */}
         <Pressable

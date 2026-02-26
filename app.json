@@ -18,7 +18,13 @@
         }
       ],
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-8406679264944836~4228358610"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -40,7 +46,8 @@
       "bundleIdentifier": "us.nomadsoft.barvibez",
       "icon": "./assets/icon-ios.png",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you."
       },
       "entitlements": {
         "com.apple.developer.in-app-payments": []

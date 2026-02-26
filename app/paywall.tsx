@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Pressable, ScrollView, StatusBar, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Text } from '~/components/nativewindui/Text';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUserSettings } from '~/lib/contexts/UserContext';
 import { useAppStoreIdentification } from '~/lib/hooks/useAppStoreIdentification';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -11,6 +11,7 @@ import Purchases from 'react-native-purchases';
 import Constants from 'expo-constants';
 import { Linking } from 'react-native';
 import { APP_CONFIG } from '~/config/app';
+import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
 
 interface SubscriptionOption {
   id: string;
@@ -40,14 +41,60 @@ const subscriptionOptions: SubscriptionOption[] = [
   },
 ];
 
+// Ad unit ID for interstitial (public identifier, not a secret)
+const INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-8406679264944836/3733680381';
+const getAdUnitId = () => __DEV__ ? TestIds.INTERSTITIAL : INTERSTITIAL_AD_UNIT_ID;
+
 export default function PayWallScreen() {
   const router = useRouter();
+  const { source } = useLocalSearchParams<{ source?: string }>();
   const { settings, updateSettings } = useUserSettings();
   const { hasProSubscription } = useAppStoreIdentification();
   const insets = useSafeAreaInsets();
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingOptionId, setProcessingOptionId] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+
+  // Only load interstitial ad when paywall is shown at app launch
+  const isLaunch = source === 'launch';
+  const interstitialRef = useRef<InterstitialAd | null>(null);
+  const [adLoaded, setAdLoaded] = useState(false);
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!isLaunch) return;
+
+    const interstitial = InterstitialAd.createForAdRequest(getAdUnitId());
+    interstitialRef.current = interstitial;
+
+    const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+
+    const unsubClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      // Ad finished — navigate to main app
+      router.replace('/popular');
+    });
+
+    const unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+      // Ad failed to load — still let user through
+      setAdLoaded(false);
+    });
+
+    cleanupRef.current = () => {
+      unsubLoaded();
+      unsubClosed();
+      unsubError();
+    };
+
+    interstitial.load();
+
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+    };
+  }, [isLaunch]);
 
   // Redirect premium users away from paywall
   useEffect(() => {
@@ -220,9 +267,14 @@ export default function PayWallScreen() {
 
   const handleSubscriptionSelect = async (optionId: string) => {
     if (optionId === 'free') {
-      // User chose to continue with free - go to main app
-      // Don't change subscription status as they're already free
-      router.replace('/popular');
+      // Show interstitial ad if this is the launch paywall and ad is ready
+      if (isLaunch && adLoaded && interstitialRef.current) {
+        await interstitialRef.current.show();
+        // Navigation happens in the AdEventType.CLOSED listener
+      } else {
+        // No ad to show — go straight to main app
+        router.replace('/popular');
+      }
     } else {
       // Directly process the purchase instead of navigating to another screen
       await handlePurchase(optionId);
